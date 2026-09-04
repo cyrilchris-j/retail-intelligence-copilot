@@ -1,0 +1,41 @@
+product_id,product_name,category,price,reorder_level,target_stock
+P001,LED Desk Lamp,Electronics,899.0,40,80
+P002,Bluetooth Speaker,Electronics,1499.0,25,50
+P003,Power Bank 10000mAh,Electronics,1299.0,35,70
+P004,HDMI Cable 2m,Electronics,249.0,50,100
+P005,USB-C Charging Cable,Electronics,199.0,60,120
+P006,Wireless Mouse,Electronics,799.0,30,60
+P007,Wireless Mouse Pro,Electronics,1299.0,20,40
+P008,Wireless Mouse Mini,Electronics,699.0,20,40
+P009,Mechanical Keyboard,Electronics,2499.0,18,36
+P010,Membrane Keyboard,Electronics,899.0,25,50
+P011,USB-C Hub,Electronics,1599.0,22,44
+P012,Webcam HD,Electronics,1899.0,15,30
+P013,Noise Cancelling Headphones,Electronics,3999.0,12,24
+P014,Wired Earphones,Electronics,299.0,40,80
+P015,Portable SSD 1TB,Electronics,5499.0,10,20
+P016,Office Chair,Office,7499.0,8,16
+P017,Ergonomic Chair,Office,11999.0,6,12
+P018,Standing Desk Converter,Office,8999.0,6,12
+P019,Desk Organizer,Office,499.0,30,60
+P020,A4 Copier Paper Ream,Office,349.0,40,80
+P021,Ballpoint Pen Pack,Office,99.0,80,160
+P022,Stapler Heavy Duty,Office,399.0,20,40
+P023,Whiteboard Marker Set,Office,249.0,25,50
+P024,Electric Kettle,Home,1299.0,18,36
+P025,Water Bottle 1L,Home,349.0,40,80
+P026,Storage Box Large,Home,799.0,15,30
+P027,Table Clock,Home,599.0,18,36
+P028,LED Night Light,Home,299.0,25,50
+P029,Phone Case Clear,Accessories,249.0,50,100
+P030,Screen Protector Pack,Accessories,199.0,50,100
+P031,Laptop Sleeve 15,Accessories,699.0,20,40
+P032,Mouse Pad XL,Accessories,349.0,30,60
+P033,Cable Organizer Kit,Accessories,199.0,25,50
+P034,Notebook A5,Stationery,79.0,60,120
+P035,Sticky Notes Pack,Stationery,59.0,50,100
+P036,Highlighter Set,Stationery,129.0,30,60
+P037,File Folder Pack,Stationery,149.0,35,70
+P038,Calculator Basic,Stationery,249.0,20,40
+P039,Gift Card Envelope,Stationery,29.0,40,80
+P040,Extension Cord 5m,Home,449.0,20,40
