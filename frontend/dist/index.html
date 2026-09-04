@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Retail Intelligence Copilot</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">NexusTiq24 · PS03</p>
+      <h1>Retail Intelligence Copilot</h1>
+    </div>
+    <div class="meta">
+      <div>Business date <strong id="biz-date">—</strong></div>
+      <div>Sales history <strong id="data-range">—</strong></div>
+      <div class="pill" id="health-pill">Checking…</div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <main class="layout">
+    <section class="panel attention">
+      <div class="panel-head">
+        <h2>Needs Attention Today</h2>
+        <p>Ranked by deterministic severity. Recommendations are decision support only.</p>
+      </div>
+      <div id="attention-list" class="stack"></div>
+    </section>
+
+    <aside class="panel copilot">
+      <div class="panel-head">
+        <h2>Manager Copilot</h2>
+        <p>Asks the database first. Gemini only explains supplied evidence.</p>
+      </div>
+      <div class="chips">
+        <button type="button" data-q="What products are likely to run out?">Stock-outs</button>
+        <button type="button" data-q="What should I prioritize today?">Prioritize today</button>
+        <button type="button" data-q="How are our Europe stores performing?">Europe stores</button>
+        <button type="button" data-q="Which products are overstocked?">Overstock</button>
+        <button type="button" data-q="Compare Chennai Central with Coimbatore.">Compare stores</button>
+      </div>
+      <form id="copilot-form">
+        <textarea id="question" rows="3" maxlength="2000" placeholder="Ask about stock, sales, or a named store…"></textarea>
+        <button type="submit" id="ask-btn">Ask</button>
+      </form>
+      <div id="copilot-result" class="copilot-result"></div>
+    </aside>
+  </main>
+
+  <section class="grid-3">
+    <article class="panel">
+      <h2>Stock-out risks</h2>
+      <div id="stockouts" class="table-wrap"></div>
+    </article>
+    <article class="panel">
+      <h2>Overstock</h2>
+      <div id="overstock" class="table-wrap"></div>
+    </article>
+    <article class="panel">
+      <h2>Sales spikes &amp; drops</h2>
+      <div id="trends" class="table-wrap"></div>
+    </article>
+  </section>
+
+  <section class="grid-2">
+    <article class="panel">
+      <h2>Store performance this month</h2>
+      <div id="stores" class="table-wrap"></div>
+    </article>
+    <article class="panel">
+      <h2>Top products this month</h2>
+      <div id="products" class="table-wrap"></div>
+    </article>
+  </section>
+
+  <section class="panel assumptions">
+    <h2>Scoring assumptions</h2>
+    <ul id="assumptions"></ul>
+  </section>
+
+  <footer>
+    Decision support only. The copilot does not place orders, move stock, or change records.
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>
