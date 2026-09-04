@@ -13,8 +13,7 @@ __pycache__/
 .vscode/
 htmlcov/
 .coverage
-dist/
-build/
+/build/
 node_modules/
 *.sqlite-journal
 .python-version
