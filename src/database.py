@@ -311,6 +311,45 @@ def get_inventory(
     return fetch_all(sql, tuple(params))
 
 
+def sales_velocity_map(start_date: str, end_date: str) -> dict[tuple[str, str], dict[str, Any]]:
+    rows = fetch_all(
+        """
+        SELECT store_id, product_id,
+               COALESCE(SUM(quantity), 0) AS units,
+               COALESCE(SUM(revenue), 0) AS revenue
+        FROM sales
+        WHERE sale_date >= ? AND sale_date <= ?
+        GROUP BY store_id, product_id
+        """,
+        (start_date, end_date),
+    )
+    return {
+        (r["store_id"], r["product_id"]): {
+            "units": int(r["units"] or 0),
+            "revenue": float(r["revenue"] or 0),
+        }
+        for r in rows
+    }
+
+
+def product_sales_velocity_map(start_date: str, end_date: str) -> dict[str, dict[str, Any]]:
+    rows = fetch_all(
+        """
+        SELECT product_id,
+               COALESCE(SUM(quantity), 0) AS units,
+               COALESCE(SUM(revenue), 0) AS revenue
+        FROM sales
+        WHERE sale_date >= ? AND sale_date <= ?
+        GROUP BY product_id
+        """,
+        (start_date, end_date),
+    )
+    return {
+        r["product_id"]: {"units": int(r["units"] or 0), "revenue": float(r["revenue"] or 0)}
+        for r in rows
+    }
+
+
 def date_bounds() -> dict[str, Optional[str]]:
     row = fetch_one("SELECT MIN(sale_date) AS min_date, MAX(sale_date) AS max_date FROM sales")
     if not row:
