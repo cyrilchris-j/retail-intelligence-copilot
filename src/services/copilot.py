@@ -268,7 +268,12 @@ def answer_question(question: str) -> dict[str, Any]:
         findings.extend(rr_findings)
         facts["stockout_count"] = len(rows)
         facts["stockouts"] = [f for f in findings if f["issue_type"] == "stockout"]
-        facts["replenishment_review"] = rr_findings
+        facts["replenishment_review_count"] = len(rr_rows)
+        facts["replenishment_reviews"] = rr_findings
+        facts["stockout_boundary_rule"] = (
+            "Only items with coverage <= 7 days are stock-out risks. "
+            "Items in replenishment_review have coverage > 7 days or undefined sales velocity and must NOT be called stock-out risks."
+        )
 
     elif intent == "OVERSTOCK":
         rows = overstock_items(product_id, store_id)
@@ -619,6 +624,8 @@ def answer_question(question: str) -> dict[str, Any]:
         "needs_human_review": True,
         "ai_available": bool(ai.get("ai_available")),
         "ai_generated": bool(ai.get("ai_available")),
+        "model_name": ai.get("model_name") or ("gemini-2.5-flash" if ai.get("ai_available") else None),
+        "deterministic_engine": "Deterministic Analytics (SQLite)",
         "fallback_reason": ai.get("fallback_reason"),
         "clarification": None,
         "missing": None,

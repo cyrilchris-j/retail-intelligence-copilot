@@ -67,6 +67,7 @@ PRIORITY_WEIGHTS = {
     "sales_drop": 50,
     "sales_spike": 35,
     "store_underperform": 45,
+    "replenishment_review": 38,
     "overstock": 30,
 }
 # Number of ranked priorities returned for "What should I prioritize today?".

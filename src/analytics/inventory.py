@@ -31,15 +31,13 @@ def stockout_risk_level(coverage: Optional[float], current_stock: int, reorder_l
       2 < coverage <= 5    -> high
       5 < coverage <= 7    -> medium
       coverage > 7         -> not a stock-out risk
-      undefined coverage   -> medium only when stock is at/below reorder level
+      undefined coverage   -> not a stock-out risk (routed to replenishment review if stock <= reorder)
 
-    Stock at or below reorder level does NOT upgrade coverage > 7 into a
-    stock-out risk; it is surfaced separately as a replenishment-review
+    Stock at or below reorder level does NOT upgrade coverage > 7 or undefined
+    coverage into a stock-out risk; it is surfaced separately as a replenishment-review
     signal (see `replenishment_review` in inventory_status).
     """
     if coverage is None:
-        if current_stock <= reorder_level:
-            return "medium"
         return None
     if coverage <= STOCKOUT_CRITICAL_DAYS:
         return "critical"

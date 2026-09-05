@@ -95,17 +95,44 @@ function renderFindings(findings) {
 
 function renderCopilot(data) {
   const aiNote = (data.ai_available ?? data.ai_generated) ? "" : `<p class="warn">AI explanation is temporarily unavailable. Deterministic analytics are still available.</p>`;
-  const policies = (data.retrieved_policies || []).map((p) =>
-    `<li><strong>${p.title || p.source}</strong>${p.policy_id ? ` <em style="font-size: 0.85em; opacity: 0.7;">(${p.policy_id})</em>` : ""}<br/>${p.text}</li>`
-  ).join("");
+  const archBanner = `
+    <div class="copilot-arch-banner">
+      <span class="arch-badge deterministic" title="All metrics and rankings computed deterministically from SQLite">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16M9 11h6M9 15h4"/></svg>
+        Analysis: Deterministic Engine (SQLite)
+      </span>
+      <span class="arch-badge ${data.ai_generated ? "gemini" : "fallback"}" title="${data.ai_generated ? "Gemini synthesizes findings and explains grounded evidence" : "Deterministic fallback envelope"}">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+        Explanation: ${data.ai_generated ? (data.model_name ? `Grounded Gemini (${data.model_name})` : "Grounded Gemini") : "Deterministic Fallback"}
+      </span>
+    </div>
+  `;
+  const policies = (data.retrieved_policies || []).map((p) => {
+    const title = p.title || p.source.replace(".md", "").replaceAll("_", " ");
+    const ref = p.policy_id ? `Ref: ${p.policy_id}` : `Source: ${p.source}`;
+    return `
+      <li class="policy-item" style="margin-bottom: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <strong style="color: var(--text); font-size: 13px;">${title}</strong>
+          <span style="font-size: 11px; color: var(--cyan); font-family: monospace;">${ref}</span>
+        </div>
+        <details style="margin-top: 6px; background: transparent; border: none; padding: 0;">
+          <summary style="cursor: pointer; font-size: 11.5px; color: var(--faint); padding: 0; user-select: none;">View policy excerpt</summary>
+          <div style="font-size: 12px; line-height: 1.5; color: var(--text-soft); margin-top: 6px; white-space: pre-line; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px;">${p.text}</div>
+        </details>
+      </li>
+    `;
+  }).join("");
   return `${aiNote}
-    <div class="answer"><strong class="status-label">${(data.status || "").replaceAll("_", " ")}</strong>
-      <p>${data.answer}</p>
+    <div class="answer">
+      ${archBanner}
+      <strong class="status-label">${(data.status || "").replaceAll("_", " ")}</strong>
+      <p style="white-space: pre-line;">${data.answer}</p>
       ${data.recommendation ? `<p><strong>Recommended action:</strong> ${data.recommendation}</p>` : ""}
       ${data.missing ? `<p class="warn">${data.missing}</p>` : ""}
     </div>
     <details open><summary>Findings</summary><ul>${renderFindings(data.findings)}</ul></details>
-    <details open><summary>Retrieved policies</summary><ul>${policies || "<li>No specific policy retrieved</li>"}</ul></details>
+    <details><summary>Retrieved policies (${(data.retrieved_policies || []).length})</summary><ul style="list-style: none; padding: 0; margin-top: 10px;">${policies || "<li>No specific policy retrieved</li>"}</ul></details>
     <details><summary>Evidence</summary><ul>${renderEvidenceList(data.evidence)}</ul></details>
     <details><summary>Assumptions</summary><ul>${(data.assumptions || []).map((a) => `<li>${a}</li>`).join("") || "<li>None</li>"}</ul></details>`;
 }
@@ -211,6 +238,25 @@ async function loadDashboard() {
   const attention = dash.attention || [];
   const countEl = document.getElementById("attention-count");
   if (countEl) countEl.textContent = `${attention.length} ${attention.length === 1 ? "item" : "items"}`;
+
+  const catLabels = {
+    stockout: "Stock-out",
+    replenishment_review: "Replenishment review",
+    sales_drop: "Sales drop",
+    sales_spike: "Sales spike",
+    store_underperform: "Store underperformance",
+    overstock: "Overstock",
+  };
+  const counts = {};
+  for (const item of attention) {
+    counts[item.issue_type] = (counts[item.issue_type] || 0) + 1;
+  }
+  const breakdownEl = document.getElementById("attention-breakdown");
+  if (breakdownEl) {
+    breakdownEl.innerHTML = Object.entries(counts)
+      .map(([type, cnt]) => `<span class="breakdown-pill"><strong>${cnt}</strong> ${catLabels[type] || type.replaceAll("_", " ")}</span>`)
+      .join("");
+  }
   document.getElementById("attention-list").innerHTML = renderAttention(attention);
   const rr = dash.inventory_risks.replenishment_review_count;
   document.getElementById("replenish-note").innerHTML = rr

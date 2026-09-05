@@ -152,6 +152,7 @@
           <div>
             <h3>Needs Attention Today</h3>
             <p>Ranked by deterministic severity. Recommendations are decision support only.</p>
+            <div id="attention-breakdown" class="attention-breakdown"></div>
           </div>
           <span class="section-tag" id="attention-count">0 items</span>
         </div>
@@ -234,9 +235,12 @@
             <p>How every number on this dashboard is derived.</p>
           </div>
         </div>
-        <div class="panel assumptions">
-          <ul id="assumptions"></ul>
-        </div>
+        <details class="panel assumptions" style="cursor: pointer;">
+          <summary style="font-weight: 600; color: var(--text-soft); font-size: 13.5px; padding: 4px 0; outline: none;">
+            <span>Click to expand full methodology &amp; scoring assumptions (7 rules)</span>
+          </summary>
+          <ul id="assumptions" style="margin-top: 14px; cursor: default;"></ul>
+        </details>
       </section>
 
       <footer class="footer">

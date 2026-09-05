@@ -42,11 +42,8 @@ def test_stockout_query_returns_deterministic_findings() -> None:
     assert stockouts, "stock-out findings present"
     for item in stockouts:
         coverage = item["metrics"]["coverage_days"]
-        if coverage is None:
-            # undefined coverage is medium only when stock is at/below reorder level
-            assert item["metrics"]["current_stock"] <= item["metrics"]["reorder_level"]
-        else:
-            assert coverage <= 7, "no finding contradicts the 7-day coverage rule"
+        assert coverage is not None, "zero velocity is replenishment review, not stockout"
+        assert coverage <= 7, "no finding contradicts the 7-day coverage rule"
 
 
 def test_replenishment_review_signal_separate_from_stockout() -> None:
@@ -59,7 +56,11 @@ def test_replenishment_review_signal_separate_from_stockout() -> None:
 
 def test_response_shape() -> None:
     result = answer_question("How did Wireless Mouse perform this month?")
-    for key in ["question", "answer", "status", "intent", "findings", "recommendation", "assumptions", "evidence", "retrieved_policies", "needs_human_review", "ai_generated"]:
+    for key in [
+        "question", "answer", "status", "intent", "findings", "recommendation",
+        "assumptions", "evidence", "retrieved_policies", "needs_human_review",
+        "ai_generated", "deterministic_engine",
+    ]:
         assert key in result, f"missing response key: {key}"
     assert result["evidence"], "evidence is traceable"
     for item in result["evidence"]:

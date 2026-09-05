@@ -37,7 +37,8 @@ def test_above_seven_days_is_not_stockout() -> None:
 
 
 def test_undefined_coverage() -> None:
-    assert stockout_risk_level(None, 4, 30) == "medium"
+    # Zero velocity (undefined coverage) is never a stockout risk; it routes to replenishment review
+    assert stockout_risk_level(None, 4, 30) is None
     assert stockout_risk_level(None, 60, 30) is None
 
 
@@ -48,6 +49,7 @@ def test_replenishment_review_separate_signal() -> None:
     names = {(i["product_name"], i["store_name"]) for i in items}
     assert ("Standing Desk Converter", "Coimbatore") in names
     assert ("Portable SSD 1TB", "Coimbatore") in names
+    assert ("Office Chair", "Madurai") in names
 
 
 def test_overstock_rules() -> None:

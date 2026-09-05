@@ -10,7 +10,7 @@ Stock-out risk by coverage days:
 
 Stock at or below the reorder level does not change the coverage classification. Below-reorder items with coverage above 7 days are a separate replenishment-review signal, never a stock-out label.
 
-If average daily sales are zero, coverage is undefined. Do not invent a coverage figure. Flag medium risk only when stock is also at or below the reorder level.
+If average daily sales are zero, coverage is undefined. Do not invent a coverage figure. If stock is at or below the reorder level with zero sales velocity, flag it as a replenishment review, not a stock-out risk.
 
 Fast-selling items can have high absolute stock and still be healthy. Do not treat high stock alone as a problem.
 

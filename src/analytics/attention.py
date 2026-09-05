@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.analytics.inventory import overstock_items, stockout_risks
+from src.analytics.inventory import overstock_items, replenishment_review_items, stockout_risks
 from src.analytics.sales import all_store_performance, detect_sales_spikes_drops
 from src.config import (
     DROP_CHANGE_PCT,
@@ -24,7 +24,7 @@ from src.config import (
 ASSUMPTIONS = [
     f"Average daily sales use the last {VELOCITY_LOOKBACK_DAYS} days including {__import__('src.config', fromlist=['BUSINESS_DATE']).BUSINESS_DATE}.",
     f"Stock-out coverage: critical ≤ {STOCKOUT_CRITICAL_DAYS:.0f}d, high > {STOCKOUT_CRITICAL_DAYS:.0f} and ≤ {STOCKOUT_HIGH_DAYS:.0f}d, medium > {STOCKOUT_HIGH_DAYS:.0f} and ≤ {STOCKOUT_MEDIUM_DAYS:.0f}d; coverage > {STOCKOUT_MEDIUM_DAYS:.0f}d is not a stock-out risk.",
-    f"Stock at or below the reorder level with coverage > {STOCKOUT_MEDIUM_DAYS:.0f}d is a separate replenishment-review signal, not a stock-out classification.",
+    f"Stock at or below the reorder level with coverage > {STOCKOUT_MEDIUM_DAYS:.0f}d or zero sales velocity (undefined coverage) is a separate replenishment-review signal, not a stock-out classification.",
     f"Overstock requires coverage > {OVERSTOCK_COVERAGE_DAYS:.0f} days (or zero velocity) and stock ≥ 1.5× target, excluding fast sellers.",
     f"Sales spike ≥ +{SPIKE_CHANGE_PCT:.0f}% and drop ≤ {DROP_CHANGE_PCT:.0f}% vs the prior {TREND_WINDOW_DAYS}-day baseline.",
     "Month-over-month compares equal-length windows: the MTD period so far this month vs the same calendar days of the previous month.",
@@ -104,6 +104,35 @@ def attention_items(limit: int = 12) -> list[dict[str, Any]]:
                 recommended_action=(
                     "Review replenishment before the next sales cycle. Confirm inbound stock; "
                     "do not place an order from this copilot."
+                ),
+            )
+        )
+
+    for row in replenishment_review_items():
+        score = PRIORITY_WEIGHTS.get("replenishment_review", 38)
+        coverage = row["coverage_days"]
+        coverage_text = f"{coverage} days" if coverage is not None else "undefined (zero velocity)"
+        items.append(
+            _item(
+                issue_type="replenishment_review",
+                product_id=row["product_id"],
+                product_name=row["product_name"],
+                store_id=row["store_id"],
+                store_name=row["store_name"],
+                score=score,
+                reason=(
+                    f"{row['product_name']} at {row['store_name']} is below reorder level "
+                    f"(stock {row['current_stock']} vs reorder {row['reorder_level']}, coverage: {coverage_text})."
+                ),
+                metrics={
+                    "current_stock": row["current_stock"],
+                    "average_daily_sales": row["average_daily_sales"],
+                    "coverage_days": coverage,
+                    "reorder_level": row["reorder_level"],
+                    "target_stock": row["target_stock"],
+                },
+                recommended_action=(
+                    "Review replenishment schedule; this item is at/below reorder level but not an active stock-out risk."
                 ),
             )
         )

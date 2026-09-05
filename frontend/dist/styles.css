@@ -387,6 +387,58 @@ textarea:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3
 #ask-btn:active { transform: translateY(0); }
 
 .copilot-result { min-height: 120px; }
+
+/* Architecture Banner in Copilot */
+.copilot-arch-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.arch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.arch-badge.deterministic {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.arch-badge.gemini {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.arch-badge.fallback {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Needs Attention Category Breakdown */
+.attention-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.breakdown-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-soft);
+  border: 1px solid var(--line);
+}
+
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 34px 20px; text-align: center;

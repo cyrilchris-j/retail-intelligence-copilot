@@ -210,6 +210,7 @@ def explain(
                 raise ValueError("Gemini returned non-JSON output.")
             parsed = validate_gemini_payload(payload, allowed_ids)
             parsed["ai_available"] = True
+            parsed["model_name"] = resolve_model()
             parsed["fallback_reason"] = None
             _record_generation(True)
             return parsed
