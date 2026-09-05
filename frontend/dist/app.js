@@ -139,13 +139,9 @@ const PAGE_META = {
 
 function setupNav() {
   const links = document.querySelectorAll(".nav-link");
-  const bnavButtons = document.querySelectorAll(".bottom-nav .bnav");
-  const bnavMore = document.getElementById("bnav-more");
   const sections = Array.from(links).map((l) => document.getElementById(l.dataset.target)).filter(Boolean);
   const crumbs = document.getElementById("page-crumb");
   const title = document.getElementById("page-title");
-  // Sections reachable via the bottom nav directly; the rest live under "More".
-  const bnavTargets = new Set(["overview", "attention", "copilot", "inventory"]);
 
   const observer = new IntersectionObserver(
     (entries) => {
@@ -153,8 +149,6 @@ function setupNav() {
         if (!entry.isIntersecting) continue;
         const id = entry.target.id;
         links.forEach((l) => l.classList.toggle("active", l.dataset.target === id));
-        bnavButtons.forEach((b) => b.classList.toggle("active", b.dataset.target === id));
-        if (bnavMore) bnavMore.classList.toggle("active", !bnavTargets.has(id));
         const meta = PAGE_META[id];
         if (meta) {
           crumbs.textContent = meta[0];
@@ -165,27 +159,6 @@ function setupNav() {
     { rootMargin: "-25% 0px -65% 0px", threshold: 0 }
   );
   sections.forEach((s) => observer.observe(s));
-
-  // Bottom nav taps scroll to their section.
-  bnavButtons.forEach((b) => {
-    if (!b.dataset.target) return;
-    b.addEventListener("click", () => {
-      const section = document.getElementById(b.dataset.target);
-      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-  // "More" opens the full navigation drawer.
-  if (bnavMore) {
-    bnavMore.addEventListener("click", () => {
-      const sidebar = document.getElementById("sidebar");
-      const scrim = document.getElementById("sidebar-scrim");
-      if (sidebar && scrim) {
-        sidebar.classList.add("open");
-        scrim.classList.add("show");
-        document.body.classList.add("menu-open");
-      }
-    });
-  }
 }
 
 function setupMobileMenu() {
