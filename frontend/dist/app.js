@@ -18,8 +18,13 @@ function badge(priority, cls) {
   return `<span class="badge ${cls || p}">${priority || p}</span>`;
 }
 
+function sevOf(priority) {
+  const p = (priority || "low").toLowerCase();
+  return ["high", "critical"].includes(p) ? "high" : p;
+}
+
 function renderAttention(items) {
-  if (!items?.length) return "<p>No attention items matched current thresholds.</p>";
+  if (!items?.length) return "<p class=\"note\">No attention items matched current thresholds.</p>";
   return items.map((item) => {
     const title = [item.product_name, item.store_name].filter(Boolean).join(" · ") || item.issue_type;
     const metrics = item.metrics || {};
@@ -28,8 +33,10 @@ function renderAttention(items) {
       .slice(0, 5)
       .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
       .join(" · ");
-    return `<article class="issue">
-      <div class="issue-top"><strong>${title}</strong>${badge(item.priority)}</div>
+    const rankBadge = item.rank ? badge(item.rank, "priority") : "";
+    const prioBadge = badge(item.priority);
+    return `<article class="issue" data-sev="${sevOf(item.priority)}">
+      <div class="issue-top"><strong>${title}</strong><span style="display:flex;gap:6px;">${rankBadge}${prioBadge}</span></div>
       <div class="reason">${item.issue_type.replaceAll("_", " ")} — ${item.reason}</div>
       <div class="metrics">${metricLine}</div>
       <div class="action"><strong>Consider:</strong> ${item.recommended_action}</div>
@@ -38,7 +45,7 @@ function renderAttention(items) {
 }
 
 function table(headers, rows) {
-  if (!rows.length) return "<p>None at current thresholds.</p>";
+  if (!rows.length) return "<p class=\"note\">None at current thresholds.</p>";
   return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
     <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
@@ -71,7 +78,7 @@ function renderEvidenceList(evidence) {
         <em style="font-size: 0.85em; opacity: 0.7;">Reference: ${reference}</em>
       </li>`;
     }).join("");
-    return `<div style="margin: 10px 0 4px;"><strong>${title}</strong></div><ul style="margin: 4px 0 8px; padding-left: 18px;">${rows}</ul>`;
+    return `<div class="evidence-card"><strong>${title}</strong></div><ul style="margin: 4px 0 10px; padding-left: 18px;">${rows}</ul>`;
   }).join("");
 }
 
@@ -80,7 +87,7 @@ function renderFindings(findings) {
   return findings.map((f) => {
     if (!f || typeof f !== "object") return `<li>${f}</li>`;
     if (f.options) return `<li>Options: ${f.options.join(", ")}</li>`;
-    const rankBadge = f.rank ? badge(f.rank, "high") : "";
+    const rankBadge = f.rank ? badge(f.rank, "priority") : "";
     const typeBadge = f.issue_type ? `<span class="badge ${(f.priority || "low").toLowerCase()}">${f.issue_type.replaceAll("_", " ")}</span>` : "";
     return `<li style="margin-bottom: 8px;">${rankBadge} ${typeBadge} ${f.reason || ""}</li>`;
   }).join("");
@@ -92,7 +99,7 @@ function renderCopilot(data) {
     `<li><strong>${p.title || p.source}</strong>${p.policy_id ? ` <em style="font-size: 0.85em; opacity: 0.7;">(${p.policy_id})</em>` : ""}<br/>${p.text}</li>`
   ).join("");
   return `${aiNote}
-    <div class="answer"><strong>${(data.status || "").replaceAll("_", " ")}</strong>
+    <div class="answer"><strong class="status-label">${(data.status || "").replaceAll("_", " ")}</strong>
       <p>${data.answer}</p>
       ${data.recommendation ? `<p><strong>Recommended action:</strong> ${data.recommendation}</p>` : ""}
       ${data.missing ? `<p class="warn">${data.missing}</p>` : ""}
@@ -118,24 +125,80 @@ function setHealthPill(health) {
   }
 }
 
+const PAGE_META = {
+  overview: ["Dashboard", "Overview"],
+  attention: ["Dashboard", "Needs Attention"],
+  copilot: ["Copilot", "Manager Copilot"],
+  inventory: ["Operations", "Inventory Health"],
+  insights: ["Analytics", "Sales Insights"],
+  products: ["Analytics", "Top Products"],
+  assumptions: ["Methodology", "Scoring Assumptions"],
+};
+
+function setupNav() {
+  const links = document.querySelectorAll(".nav-link");
+  const sections = Array.from(links).map((l) => document.getElementById(l.dataset.target)).filter(Boolean);
+  const crumbs = document.getElementById("page-crumb");
+  const title = document.getElementById("page-title");
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const id = entry.target.id;
+        links.forEach((l) => l.classList.toggle("active", l.dataset.target === id));
+        const meta = PAGE_META[id];
+        if (meta) {
+          crumbs.textContent = meta[0];
+          title.textContent = meta[1];
+        }
+      }
+    },
+    { rootMargin: "-25% 0px -65% 0px", threshold: 0 }
+  );
+  sections.forEach((s) => observer.observe(s));
+}
+
+function setupMobileMenu() {
+  const btn = document.getElementById("menu-btn");
+  const sidebar = document.getElementById("sidebar");
+  const scrim = document.getElementById("sidebar-scrim");
+  if (!btn || !sidebar || !scrim) return;
+  const close = () => {
+    sidebar.classList.remove("open");
+    scrim.classList.remove("show");
+  };
+  btn.addEventListener("click", () => {
+    sidebar.classList.toggle("open");
+    scrim.classList.toggle("show");
+  });
+  scrim.addEventListener("click", close);
+  sidebar.querySelectorAll(".nav-link").forEach((l) => l.addEventListener("click", close));
+}
+
 async function loadDashboard() {
   const [health, dash] = await Promise.all([getJson("/api/health"), getJson("/api/dashboard")]);
   setHealthPill(health);
   document.getElementById("biz-date").textContent = dash.business_date;
+  const bizTop = document.getElementById("biz-date-top");
+  if (bizTop) bizTop.textContent = dash.business_date;
   document.getElementById("data-refresh").textContent = dash.business_date + " 00:00:00 UTC";
   document.getElementById("data-range").textContent = `${dash.data_range.min_date} → ${dash.data_range.max_date}`;
   const s = dash.summary;
   const labels = s.month_labels || {};
   const momLabel = labels.comparison_label || "MoM";
-  const unitsNote = s.month_over_month_units_note ? `<span style="color: var(--medium);">${s.month_over_month_units_note}</span>` : pct(s.month_over_month_units_pct);
-  const revenueNote = s.month_over_month_revenue_note ? `<span style="color: var(--medium);">${s.month_over_month_revenue_note}</span>` : pct(s.month_over_month_revenue_pct);
+  const unitsNote = s.month_over_month_units_note ? `<span style="color: var(--amber);">${s.month_over_month_units_note}</span>` : pct(s.month_over_month_units_pct);
+  const revenueNote = s.month_over_month_revenue_note ? `<span style="color: var(--amber);">${s.month_over_month_revenue_note}</span>` : pct(s.month_over_month_revenue_pct);
   document.getElementById("kpis").innerHTML = [
     kpi("Month units", num(s.units_sold), `${momLabel}: ${unitsNote}`),
     kpi("Month revenue", inr(s.revenue), `${momLabel}: ${revenueNote}`),
     kpi("Lifetime units", num(s.lifetime_units), "All 90-day history"),
     kpi("Inventory units", num(s.inventory_units), "Current on-hand"),
   ].join("");
-  document.getElementById("attention-list").innerHTML = renderAttention(dash.attention);
+  const attention = dash.attention || [];
+  const countEl = document.getElementById("attention-count");
+  if (countEl) countEl.textContent = `${attention.length} ${attention.length === 1 ? "item" : "items"}`;
+  document.getElementById("attention-list").innerHTML = renderAttention(attention);
   const rr = dash.inventory_risks.replenishment_review_count;
   document.getElementById("replenish-note").innerHTML = rr
     ? `<p class="note">${rr} item(s) are below reorder level with coverage above 7 days — flagged for replenishment review, not stock-out risk.</p>`
@@ -165,7 +228,7 @@ async function loadDashboard() {
 
 async function ask(question) {
   const box = document.getElementById("copilot-result");
-  box.innerHTML = "<p>Running analytics…</p>";
+  box.innerHTML = "<p class=\"note\">Running analytics…</p>";
   try {
     const data = await getJson("/api/copilot", {
       method: "POST",
@@ -189,6 +252,8 @@ document.querySelectorAll(".chips button").forEach((btn) => {
   });
 });
 
+setupNav();
+setupMobileMenu();
 loadDashboard().catch((err) => {
   document.getElementById("attention-list").innerHTML = `<p class="warn">${err.message}</p>`;
 });
