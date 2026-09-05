@@ -134,7 +134,6 @@ document.getElementById("copilot-form").addEventListener("submit", (e) => {
 document.querySelectorAll(".chips button").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.getElementById("question").value = btn.dataset.q;
-    ask(btn.dataset.q);
   });
 });
 
