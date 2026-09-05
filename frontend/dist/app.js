@@ -49,9 +49,15 @@ function renderCopilot(data) {
     if (f.options) return `<li>Options: ${f.options.join(", ")}</li>`;
     return `<li>${f.reason || ""}</li>`;
   }).join("");
-  const evidence = (data.evidence || []).map((e) =>
-    `<li><code>${e.evidence_id}</code> ${e.metric}=${e.value} ${e.product_id || ""} ${e.store_id || ""} ${e.period || ""}</li>`
-  ).join("");
+  const evidence = (data.evidence || []).map((e) => {
+    let text = `<strong>${e.source || e.type || "Metric"}</strong><br/>`;
+    if (e.store_id) text += `&bull; Store: ${e.store_id}<br/>`;
+    if (e.product_id) text += `&bull; Product: ${e.product_id}<br/>`;
+    if (e.period) text += `&bull; Period: ${e.period}<br/>`;
+    text += `&bull; ${e.metric.replaceAll("_", " ")}: <strong>${e.value}</strong><br/>`;
+    text += `<em style="font-size: 0.85em; opacity: 0.7;">Evidence ID: ${e.evidence_id}</em>`;
+    return `<li style="margin-bottom: 8px;">${text}</li>`;
+  }).join("");
   const assumptions = (data.assumptions || []).map((a) => `<li>${a}</li>`).join("");
   const aiNote = data.ai_available ? "" : `<p class="warn">${data.answer.includes("unavailable") ? "" : "AI explanation is currently unavailable. Showing deterministic analytics."}</p>`;
   return `${aiNote}
@@ -63,18 +69,21 @@ function renderCopilot(data) {
     <details open><summary>Findings</summary><ul>${findings || "<li>None</li>"}</ul></details>
     <details><summary>Evidence</summary><ul>${evidence || "<li>None</li>"}</ul></details>
     <details><summary>Assumptions</summary><ul>${assumptions || "<li>None</li>"}</ul></details>
-    <details><summary>Retrieved policies</summary><ul>${(data.retrieved_policies || []).map((p) => `<li><code>${p.chunk_id}</code> ${p.source}</li>`).join("") || "<li>None</li>"}</ul></details>`;
+    <details><summary>Retrieved policies</summary><ul>${(data.retrieved_policies || []).map((p) => `<li><strong>${p.source}</strong>: ${p.text}</li>`).join("") || "<li>No specific policy retrieved</li>"}</ul></details>`;
 }
 
 async function loadDashboard() {
   const [health, dash] = await Promise.all([getJson("/api/health"), getJson("/api/dashboard")]);
-  document.getElementById("health-pill").textContent = health.gemini_configured ? "Gemini configured" : "Deterministic mode";
+  document.getElementById("health-pill").textContent = health.gemini_configured ? "Gemini Connected" : "Gemini Unavailable";
   document.getElementById("biz-date").textContent = dash.business_date;
+  document.getElementById("data-refresh").textContent = dash.business_date + " 00:00:00 UTC";
   document.getElementById("data-range").textContent = `${dash.data_range.min_date} → ${dash.data_range.max_date}`;
   const s = dash.summary;
+  const b = s.month_bounds;
+  const momLabel = b ? `${b.current_start.slice(5)} to ${b.current_end.slice(5)} vs ${b.previous_start.slice(5)} to ${b.previous_end.slice(5)}` : "MoM";
   document.getElementById("kpis").innerHTML = [
-    kpi("Month units", num(s.units_sold), `MoM ${pct(s.month_over_month_units_pct)}`),
-    kpi("Month revenue", inr(s.revenue), `MoM ${pct(s.month_over_month_revenue_pct)}`),
+    kpi("Month units", num(s.units_sold), `${momLabel}: ${pct(s.month_over_month_units_pct)}`),
+    kpi("Month revenue", inr(s.revenue), `${momLabel}: ${pct(s.month_over_month_revenue_pct)}`),
     kpi("Lifetime units", num(s.lifetime_units), "All 90-day history"),
     kpi("Inventory units", num(s.inventory_units), "Current on-hand"),
   ].join("");
