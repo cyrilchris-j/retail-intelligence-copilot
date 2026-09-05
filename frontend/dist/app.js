@@ -13,18 +13,13 @@ function kpi(label, value, note) {
   return `<article class="kpi"><span>${label}</span><strong>${value}</strong><em>${note || ""}</em></article>`;
 }
 
-function badge(priority, cls) {
+function badge(priority) {
   const p = (priority || "low").toLowerCase();
-  return `<span class="badge ${cls || p}">${priority || p}</span>`;
-}
-
-function sevOf(priority) {
-  const p = (priority || "low").toLowerCase();
-  return ["high", "critical"].includes(p) ? "high" : p;
+  return `<span class="badge ${p}">${p}</span>`;
 }
 
 function renderAttention(items) {
-  if (!items?.length) return "<p class=\"note\">No attention items matched current thresholds.</p>";
+  if (!items?.length) return "<p>No attention items matched current thresholds.</p>";
   return items.map((item) => {
     const title = [item.product_name, item.store_name].filter(Boolean).join(" · ") || item.issue_type;
     const metrics = item.metrics || {};
@@ -33,10 +28,8 @@ function renderAttention(items) {
       .slice(0, 5)
       .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
       .join(" · ");
-    const rankBadge = item.rank ? badge(item.rank, "priority") : "";
-    const prioBadge = badge(item.priority);
-    return `<article class="issue" data-sev="${sevOf(item.priority)}">
-      <div class="issue-top"><strong>${title}</strong><span style="display:flex;gap:6px;">${rankBadge}${prioBadge}</span></div>
+    return `<article class="issue">
+      <div class="issue-top"><strong>${title}</strong>${badge(item.priority)}</div>
       <div class="reason">${item.issue_type.replaceAll("_", " ")} — ${item.reason}</div>
       <div class="metrics">${metricLine}</div>
       <div class="action"><strong>Consider:</strong> ${item.recommended_action}</div>
@@ -45,207 +38,59 @@ function renderAttention(items) {
 }
 
 function table(headers, rows) {
-  if (!rows.length) return "<p class=\"note\">None at current thresholds.</p>";
+  if (!rows.length) return "<p>None at current thresholds.</p>";
   return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
-    <tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${headers[i]}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-}
-
-const EVIDENCE_GROUP_TITLES = {
-  inventory: "Inventory Evidence",
-  sales: "Sales Evidence",
-  policy: "Policy Evidence",
-  product: "Product Evidence",
-  store: "Store Evidence",
-  rule: "Rule Evidence",
-  calc: "Calculated Metrics",
-};
-
-function renderEvidenceList(evidence) {
-  if (!evidence?.length) return "<li>None</li>";
-  const groups = {};
-  for (const e of evidence) {
-    const key = e.group || e.type || "evidence";
-    (groups[key] = groups[key] || []).push(e);
-  }
-  return Object.entries(groups).map(([group, items]) => {
-    const title = EVIDENCE_GROUP_TITLES[group] || group.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
-    const rows = items.map((e) => {
-      const context = [e.product_name, e.store_name].filter(Boolean).join(" · ");
-      const reference = e.policy_id || e.evidence_id;
-      return `<li style="margin-bottom: 8px;">
-        ${context ? `<div style="opacity: 0.85;">${context}</div>` : ""}
-        <div><strong>${e.label || e.metric.replaceAll("_", " ")}:</strong> ${e.display_value ?? e.value}</div>
-        <em style="font-size: 0.85em; opacity: 0.7;">Reference: ${reference}</em>
-      </li>`;
-    }).join("");
-    return `<div class="evidence-card"><strong>${title}</strong></div><ul style="margin: 4px 0 10px; padding-left: 18px;">${rows}</ul>`;
-  }).join("");
-}
-
-function renderFindings(findings) {
-  if (!findings?.length) return "<li>None</li>";
-  return findings.map((f) => {
-    if (!f || typeof f !== "object") return `<li>${f}</li>`;
-    if (f.options) return `<li>Options: ${f.options.join(", ")}</li>`;
-    const rankBadge = f.rank ? badge(f.rank, "priority") : "";
-    const typeBadge = f.issue_type ? `<span class="badge ${(f.priority || "low").toLowerCase()}">${f.issue_type.replaceAll("_", " ")}</span>` : "";
-    return `<li style="margin-bottom: 8px;">${rankBadge} ${typeBadge} ${f.reason || ""}</li>`;
-  }).join("");
+    <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 function renderCopilot(data) {
-  const aiNote = (data.ai_available ?? data.ai_generated) ? "" : `<p class="warn">AI explanation is temporarily unavailable. Deterministic analytics are still available.</p>`;
-  const policies = (data.retrieved_policies || []).map((p) =>
-    `<li><strong>${p.title || p.source}</strong>${p.policy_id ? ` <em style="font-size: 0.85em; opacity: 0.7;">(${p.policy_id})</em>` : ""}<br/>${p.text}</li>`
-  ).join("");
+  const findings = (data.findings || []).map((f) => {
+    if (!f || typeof f !== "object") return `<li>${f}</li>`;
+    if (f.options) return `<li>Options: ${f.options.join(", ")}</li>`;
+    return `<li>${f.reason || ""}</li>`;
+  }).join("");
+  const evidence = (data.evidence || []).map((e) => {
+    let text = `<strong>${e.source || e.type || "Metric"}</strong><br/>`;
+    if (e.store_id) text += `&bull; Store: ${e.store_id}<br/>`;
+    if (e.product_id) text += `&bull; Product: ${e.product_id}<br/>`;
+    if (e.period) text += `&bull; Period: ${e.period}<br/>`;
+    text += `&bull; ${e.metric.replaceAll("_", " ")}: <strong>${e.value}</strong><br/>`;
+    text += `<em style="font-size: 0.85em; opacity: 0.7;">Evidence ID: ${e.evidence_id}</em>`;
+    return `<li style="margin-bottom: 8px;">${text}</li>`;
+  }).join("");
+  const assumptions = (data.assumptions || []).map((a) => `<li>${a}</li>`).join("");
+  const aiNote = data.ai_available ? "" : `<p class="warn">${data.answer.includes("unavailable") ? "" : "AI explanation is currently unavailable. Showing deterministic analytics."}</p>`;
   return `${aiNote}
-    <div class="answer"><strong class="status-label">${(data.status || "").replaceAll("_", " ")}</strong>
+    <div class="answer"><strong>${(data.status || "").replaceAll("_", " ")}</strong>
       <p>${data.answer}</p>
       ${data.recommendation ? `<p><strong>Recommended action:</strong> ${data.recommendation}</p>` : ""}
       ${data.missing ? `<p class="warn">${data.missing}</p>` : ""}
     </div>
-    <details open><summary>Findings</summary><ul>${renderFindings(data.findings)}</ul></details>
-    <details open><summary>Retrieved policies</summary><ul>${policies || "<li>No specific policy retrieved</li>"}</ul></details>
-    <details><summary>Evidence</summary><ul>${renderEvidenceList(data.evidence)}</ul></details>
-    <details><summary>Assumptions</summary><ul>${(data.assumptions || []).map((a) => `<li>${a}</li>`).join("") || "<li>None</li>"}</ul></details>`;
-}
-
-function setHealthPill(health) {
-  const status = health.gemini_status || (health.gemini_configured ? "connected" : "unavailable");
-  const pill = document.getElementById("health-pill");
-  if (status === "connected") {
-    pill.textContent = "Gemini Connected";
-    pill.className = "pill connected";
-  } else if (status === "not_configured") {
-    pill.textContent = "Gemini Not Configured";
-    pill.className = "pill not-configured";
-  } else {
-    pill.textContent = "Gemini Unavailable";
-    pill.className = "pill unavailable";
-  }
-  const dot = document.getElementById("status-dot");
-  if (dot) dot.className = `status-dot ${status}`;
-}
-
-const PAGE_META = {
-  overview: ["Dashboard", "Overview"],
-  attention: ["Dashboard", "Needs Attention"],
-  copilot: ["Copilot", "Manager Copilot"],
-  inventory: ["Operations", "Inventory Health"],
-  insights: ["Analytics", "Sales Insights"],
-  products: ["Analytics", "Top Products"],
-  assumptions: ["Methodology", "Scoring Assumptions"],
-};
-
-function setupNav() {
-  const links = document.querySelectorAll(".nav-link");
-  const bnavButtons = document.querySelectorAll(".bottom-nav .bnav");
-  const bnavMore = document.getElementById("bnav-more");
-  const sections = Array.from(links).map((l) => document.getElementById(l.dataset.target)).filter(Boolean);
-  const crumbs = document.getElementById("page-crumb");
-  const title = document.getElementById("page-title");
-  // Sections reachable via the bottom nav directly; the rest live under "More".
-  const bnavTargets = new Set(["overview", "attention", "copilot", "inventory"]);
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const id = entry.target.id;
-        links.forEach((l) => l.classList.toggle("active", l.dataset.target === id));
-        bnavButtons.forEach((b) => b.classList.toggle("active", b.dataset.target === id));
-        if (bnavMore) bnavMore.classList.toggle("active", !bnavTargets.has(id));
-        const meta = PAGE_META[id];
-        if (meta) {
-          crumbs.textContent = meta[0];
-          title.textContent = meta[1];
-        }
-      }
-    },
-    { rootMargin: "-25% 0px -65% 0px", threshold: 0 }
-  );
-  sections.forEach((s) => observer.observe(s));
-
-  // Bottom nav taps scroll to their section.
-  bnavButtons.forEach((b) => {
-    if (!b.dataset.target) return;
-    b.addEventListener("click", () => {
-      const section = document.getElementById(b.dataset.target);
-      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-  // "More" opens the full navigation drawer.
-  if (bnavMore) {
-    bnavMore.addEventListener("click", () => {
-      const sidebar = document.getElementById("sidebar");
-      const scrim = document.getElementById("sidebar-scrim");
-      if (sidebar && scrim) {
-        sidebar.classList.add("open");
-        scrim.classList.add("show");
-        document.body.classList.add("menu-open");
-      }
-    });
-  }
-}
-
-function setupMobileMenu() {
-  const btn = document.getElementById("menu-btn");
-  const sidebar = document.getElementById("sidebar");
-  const scrim = document.getElementById("sidebar-scrim");
-  const closeBtn = document.getElementById("drawer-close");
-  if (!btn || !sidebar || !scrim) return;
-  const close = () => {
-    sidebar.classList.remove("open");
-    scrim.classList.remove("show");
-    document.body.classList.remove("menu-open");
-  };
-  const open = () => {
-    sidebar.classList.add("open");
-    scrim.classList.add("show");
-    document.body.classList.add("menu-open");
-  };
-  btn.addEventListener("click", () => {
-    if (sidebar.classList.contains("open")) close();
-    else open();
-  });
-  if (closeBtn) closeBtn.addEventListener("click", close);
-  scrim.addEventListener("click", close);
-  sidebar.querySelectorAll(".nav-link").forEach((l) => l.addEventListener("click", close));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") close();
-  });
+    <details open><summary>Findings</summary><ul>${findings || "<li>None</li>"}</ul></details>
+    <details><summary>Evidence</summary><ul>${evidence || "<li>None</li>"}</ul></details>
+    <details><summary>Assumptions</summary><ul>${assumptions || "<li>None</li>"}</ul></details>
+    <details><summary>Retrieved policies</summary><ul>${(data.retrieved_policies || []).map((p) => `<li><strong>${p.source}</strong>: ${p.text}</li>`).join("") || "<li>No specific policy retrieved</li>"}</ul></details>`;
 }
 
 async function loadDashboard() {
   const [health, dash] = await Promise.all([getJson("/api/health"), getJson("/api/dashboard")]);
-  setHealthPill(health);
+  document.getElementById("health-pill").textContent = health.gemini_configured ? "Gemini Connected" : "Gemini Unavailable";
   document.getElementById("biz-date").textContent = dash.business_date;
-  const bizTop = document.getElementById("biz-date-top");
-  if (bizTop) bizTop.textContent = dash.business_date;
   document.getElementById("data-refresh").textContent = dash.business_date + " 00:00:00 UTC";
   document.getElementById("data-range").textContent = `${dash.data_range.min_date} → ${dash.data_range.max_date}`;
   const s = dash.summary;
-  const labels = s.month_labels || {};
-  const momLabel = labels.comparison_label || "MoM";
-  const unitsNote = s.month_over_month_units_note ? `<span style="color: var(--amber);">${s.month_over_month_units_note}</span>` : pct(s.month_over_month_units_pct);
-  const revenueNote = s.month_over_month_revenue_note ? `<span style="color: var(--amber);">${s.month_over_month_revenue_note}</span>` : pct(s.month_over_month_revenue_pct);
+  const b = s.month_bounds;
+  const momLabel = b ? `${b.current_start.slice(5)} to ${b.current_end.slice(5)} vs ${b.previous_start.slice(5)} to ${b.previous_end.slice(5)}` : "MoM";
   document.getElementById("kpis").innerHTML = [
-    kpi("Month units", num(s.units_sold), `${momLabel}: ${unitsNote}`),
-    kpi("Month revenue", inr(s.revenue), `${momLabel}: ${revenueNote}`),
+    kpi("Month units", num(s.units_sold), `${momLabel}: ${pct(s.month_over_month_units_pct)}`),
+    kpi("Month revenue", inr(s.revenue), `${momLabel}: ${pct(s.month_over_month_revenue_pct)}`),
     kpi("Lifetime units", num(s.lifetime_units), "All 90-day history"),
     kpi("Inventory units", num(s.inventory_units), "Current on-hand"),
   ].join("");
-  const attention = dash.attention || [];
-  const countEl = document.getElementById("attention-count");
-  if (countEl) countEl.textContent = `${attention.length} ${attention.length === 1 ? "item" : "items"}`;
-  document.getElementById("attention-list").innerHTML = renderAttention(attention);
-  const rr = dash.inventory_risks.replenishment_review_count;
-  document.getElementById("replenish-note").innerHTML = rr
-    ? `<p class="note">${rr} item(s) are below reorder level with coverage above 7 days — flagged for replenishment review, not stock-out risk.</p>`
-    : "";
+  document.getElementById("attention-list").innerHTML = renderAttention(dash.attention);
   document.getElementById("stockouts").innerHTML = table(
     ["Product", "Store", "Stock", "ADS", "Coverage", "Risk"],
-    (dash.inventory_risks.stockouts || []).map((r) => [r.product_name, r.store_name, r.current_stock, r.average_daily_sales, r.coverage_days ?? "undef", r.risk + (r.below_reorder ? " · below reorder" : "")])
+    (dash.inventory_risks.stockouts || []).map((r) => [r.product_name, r.store_name, r.current_stock, r.average_daily_sales, r.coverage_days ?? "undef", r.risk])
   );
   document.getElementById("overstock").innerHTML = table(
     ["Product", "Store", "Stock", "Target", "Coverage"],
@@ -268,7 +113,7 @@ async function loadDashboard() {
 
 async function ask(question) {
   const box = document.getElementById("copilot-result");
-  box.innerHTML = "<p class=\"note\">Running analytics…</p>";
+  box.innerHTML = "<p>Running analytics…</p>";
   try {
     const data = await getJson("/api/copilot", {
       method: "POST",
@@ -292,8 +137,6 @@ document.querySelectorAll(".chips button").forEach((btn) => {
   });
 });
 
-setupNav();
-setupMobileMenu();
 loadDashboard().catch((err) => {
   document.getElementById("attention-list").innerHTML = `<p class="warn">${err.message}</p>`;
 });
