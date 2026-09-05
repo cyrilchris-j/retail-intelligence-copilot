@@ -519,6 +519,21 @@ tbody tr:last-child td { border-bottom: none; }
   .kpi strong { font-size: 26px; }
   .kpi em { font-size: 11px; }
 
+  #inventory .grid-2 {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -14px;
+    padding: 0 14px 10px;
+    gap: 14px;
+  }
+  #inventory .grid-2::-webkit-scrollbar { display: none; }
+  #inventory .grid-2 > .panel {
+    flex: 0 0 85%;
+  }
+
   .chips {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -544,32 +559,51 @@ tbody tr:last-child td { border-bottom: none; }
   .metrics { font-size: 10.5px; }
   .reason, .action { font-size: 12.5px; }
 
-  /* Tables become stacked label/value cards */
+  /* Beautiful mobile table cards */
   .table-wrap table, .table-wrap thead, .table-wrap tbody, .table-wrap tr, .table-wrap th, .table-wrap td {
-    display: block; width: 100%;
+    display: block; width: 100%; box-sizing: border-box;
   }
   .table-wrap thead { display: none; }
-  .table-wrap tbody { display: flex; flex-direction: column; gap: 9px; }
+  .table-wrap tbody { display: flex; flex-direction: column; gap: 12px; }
   .table-wrap tr {
-    background: var(--panel-2);
+    background: rgba(30, 41, 59, 0.4);
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 10px 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   .table-wrap td {
-    display: flex; justify-content: space-between; align-items: center; gap: 14px;
-    border: none; padding: 4px 0;
-    font-size: 13px; white-space: normal;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border: none;
+    padding: 0;
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .table-wrap td::before {
     content: attr(data-label);
-    color: var(--faint);
-    font-size: 10.5px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 12px;
   }
-  .table-wrap td:first-child { color: var(--text); font-weight: 600; }
-  .table-wrap td:first-child::before { color: var(--cyan); }
+  .table-wrap td:first-child {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .table-wrap td:first-child::before {
+    display: none;
+  }
 
   .assumptions ul { font-size: 13px; padding-left: 18px; }
   .footer { font-size: 11.5px; padding: 20px 0 6px; }
