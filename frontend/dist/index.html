@@ -43,9 +43,11 @@
       <div class="chips">
         <button type="button" data-q="What products are likely to run out?">Stock-outs</button>
         <button type="button" data-q="What should I prioritize today?">Prioritize today</button>
-        <button type="button" data-q="How are our Europe stores performing?">Europe stores</button>
+        <button type="button" data-q="How did Wireless Mouse perform this month?">Wireless Mouse</button>
         <button type="button" data-q="Which products are overstocked?">Overstock</button>
+        <button type="button" data-q="Why did sales drop for USB-C Hub?">Sales drop</button>
         <button type="button" data-q="Compare Chennai Central with Coimbatore.">Compare stores</button>
+        <button type="button" data-q="How are our Europe stores performing?">Europe stores</button>
       </div>
       <form id="copilot-form">
         <textarea id="question" rows="3" maxlength="2000" placeholder="Ask about stock, sales, or a named store…"></textarea>
@@ -58,6 +60,7 @@
   <section class="grid-3">
     <article class="panel">
       <h2>Stock-out risks</h2>
+      <div id="replenish-note"></div>
       <div id="stockouts" class="table-wrap"></div>
     </article>
     <article class="panel">

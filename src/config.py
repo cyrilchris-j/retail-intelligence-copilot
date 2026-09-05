@@ -19,8 +19,16 @@ CHUNKS_PATH = INDEX_DIR / "chunks.json"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+# If the configured model is not available, try these in order before declaring Gemini unavailable.
+GEMINI_FALLBACK_MODELS = [
+    "gemini-3-flash",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+]
 GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSIONS = 768
+HEALTH_CACHE_SECONDS = 60
 
 HOST = "0.0.0.0"
 PORT = 8000
@@ -32,6 +40,11 @@ BUSINESS_DATE = "2026-09-04"
 VELOCITY_LOOKBACK_DAYS = 14
 
 # Stock-out coverage thresholds (days of inventory remaining).
+# Central rule used by analytics, dashboard, copilot, and policy docs:
+#   coverage <= 2              -> critical
+#   2 < coverage <= 5          -> high
+#   5 < coverage <= 7          -> medium
+#   coverage > 7               -> NOT a stock-out risk (below-reorder handled separately)
 STOCKOUT_CRITICAL_DAYS = 2.0
 STOCKOUT_HIGH_DAYS = 5.0
 STOCKOUT_MEDIUM_DAYS = 7.0
@@ -53,9 +66,11 @@ PRIORITY_WEIGHTS = {
     "stockout_medium": 55,
     "sales_drop": 50,
     "sales_spike": 35,
-    "overstock": 30,
     "store_underperform": 45,
+    "overstock": 30,
 }
+# Number of ranked priorities returned for "What should I prioritize today?".
+PRIORITY_TOP_N = 3
 REVENUE_IMPACT_CAP = 25
 HIGH_PRIORITY_SCORE = 80
 MEDIUM_PRIORITY_SCORE = 50
@@ -64,3 +79,4 @@ RETRIEVAL_TOP_K = 4
 MAX_QUESTION_LENGTH = 2000
 GEMINI_TIMEOUT_SECONDS = 25
 GEMINI_MAX_RETRIES = 1
+HEALTH_TIMEOUT_SECONDS = 12

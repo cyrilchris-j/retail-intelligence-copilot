@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from src.analytics.dates import month_bounds, percent_change, trend_windows, window_bounds
+from src.analytics.dates import month_bounds, month_labels, percent_change, trend_windows, window_bounds
 from src.config import DROP_CHANGE_PCT, SPIKE_CHANGE_PCT, TREND_WINDOW_DAYS
 from src.database import get_daily_sales, get_product, get_sales_aggregates, get_store
 
@@ -34,8 +34,20 @@ def weekly_sales(product_id: Optional[str] = None, store_id: Optional[str] = Non
     return result
 
 
+def _change_note(previous_value: float, previous_row_count: int) -> Optional[str]:
+    """Human note when a percentage change cannot be computed."""
+    if previous_row_count == 0:
+        return "Insufficient comparison data"
+    if previous_value == 0:
+        return "No comparable baseline"
+    return None
+
+
 def monthly_sales(product_id: Optional[str] = None, store_id: Optional[str] = None) -> dict[str, Any]:
+    """Equal-window MTD comparison: this month so far vs the same days of the
+    previous month. Never compares a partial month against a full month."""
     bounds = month_bounds()
+    labels = month_labels()
     current = total_sales(product_id, store_id, bounds["current_start"], bounds["current_end"])
     previous = total_sales(product_id, store_id, bounds["previous_start"], bounds["previous_end"])
     units_change = percent_change(current["units"], previous["units"])
@@ -45,7 +57,10 @@ def monthly_sales(product_id: Optional[str] = None, store_id: Optional[str] = No
         "previous": previous,
         "units_change_pct": units_change,
         "revenue_change_pct": revenue_change,
+        "units_change_note": _change_note(previous["units"], previous["row_count"]),
+        "revenue_change_note": _change_note(previous["revenue"], previous["row_count"]),
         "bounds": bounds,
+        "labels": labels,
         "insufficient_history": previous["row_count"] == 0,
     }
 

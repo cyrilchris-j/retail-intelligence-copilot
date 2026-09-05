@@ -23,9 +23,11 @@ from src.config import (
 
 ASSUMPTIONS = [
     f"Average daily sales use the last {VELOCITY_LOOKBACK_DAYS} days including {__import__('src.config', fromlist=['BUSINESS_DATE']).BUSINESS_DATE}.",
-    f"Stock-out coverage: critical ≤ {STOCKOUT_CRITICAL_DAYS:.0f}d, high ≤ {STOCKOUT_HIGH_DAYS:.0f}d, medium ≤ {STOCKOUT_MEDIUM_DAYS:.0f}d.",
+    f"Stock-out coverage: critical ≤ {STOCKOUT_CRITICAL_DAYS:.0f}d, high > {STOCKOUT_CRITICAL_DAYS:.0f} and ≤ {STOCKOUT_HIGH_DAYS:.0f}d, medium > {STOCKOUT_HIGH_DAYS:.0f} and ≤ {STOCKOUT_MEDIUM_DAYS:.0f}d; coverage > {STOCKOUT_MEDIUM_DAYS:.0f}d is not a stock-out risk.",
+    f"Stock at or below the reorder level with coverage > {STOCKOUT_MEDIUM_DAYS:.0f}d is a separate replenishment-review signal, not a stock-out classification.",
     f"Overstock requires coverage > {OVERSTOCK_COVERAGE_DAYS:.0f} days (or zero velocity) and stock ≥ 1.5× target, excluding fast sellers.",
     f"Sales spike ≥ +{SPIKE_CHANGE_PCT:.0f}% and drop ≤ {DROP_CHANGE_PCT:.0f}% vs the prior {TREND_WINDOW_DAYS}-day baseline.",
+    "Month-over-month compares equal-length windows: the MTD period so far this month vs the same calendar days of the previous month.",
     "Priority score = issue-type weight + capped revenue-impact points. Recommendations are decision support only.",
 ]
 

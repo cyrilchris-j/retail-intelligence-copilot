@@ -44,15 +44,17 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Retail Intelligence Copilot", version="1.0.0", lifespan=lifespan)
 
 
-from src.llm.gemini import gemini_configured, check_health
+from src.llm.gemini import check_health, gemini_configured, gemini_status
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    status = gemini_status()
     return {
         "status": "ok",
         "service": "retail-intelligence-copilot",
         "business_date": BUSINESS_DATE,
-        "gemini_configured": check_health(),
+        "gemini_status": status,  # "connected" | "unavailable" | "not_configured"
+        "gemini_configured": status == "connected",
         "database_ready": database_ready(),
     }
 
@@ -133,6 +135,7 @@ def copilot(payload: CopilotRequest) -> dict[str, Any]:
             "retrieved_policies": [],
             "needs_human_review": True,
             "ai_available": False,
+            "ai_generated": False,
             "clarification": None,
             "missing": str(exc.__class__.__name__),
         }

@@ -24,6 +24,19 @@ def inventory_coverage_days(current_stock: float, average_daily_sales: float) ->
 
 
 def stockout_risk_level(coverage: Optional[float], current_stock: int, reorder_level: int) -> Optional[str]:
+    """Coverage-based stock-out risk. This is the single source of truth.
+
+    Rule (matches the displayed thresholds and data/business_rules):
+      coverage <= 2        -> critical
+      2 < coverage <= 5    -> high
+      5 < coverage <= 7    -> medium
+      coverage > 7         -> not a stock-out risk
+      undefined coverage   -> medium only when stock is at/below reorder level
+
+    Stock at or below reorder level does NOT upgrade coverage > 7 into a
+    stock-out risk; it is surfaced separately as a replenishment-review
+    signal (see `replenishment_review` in inventory_status).
+    """
     if coverage is None:
         if current_stock <= reorder_level:
             return "medium"
@@ -32,9 +45,20 @@ def stockout_risk_level(coverage: Optional[float], current_stock: int, reorder_l
         return "critical"
     if coverage <= STOCKOUT_HIGH_DAYS:
         return "high"
-    if coverage <= STOCKOUT_MEDIUM_DAYS or current_stock <= reorder_level:
+    if coverage <= STOCKOUT_MEDIUM_DAYS:
         return "medium"
     return None
+
+
+def is_replenishment_review(row: dict[str, Any]) -> bool:
+    """Below reorder level with coverage beyond the stock-out band.
+
+    Not a stock-out risk under the coverage rule, but worth a separate
+    "replenishment review" signal so the manager still notices.
+    """
+    if row.get("stockout_risk"):
+        return False
+    return bool(row.get("below_reorder"))
 
 
 def is_overstock(
@@ -64,21 +88,22 @@ def inventory_status(
         coverage = inventory_coverage_days(item["current_stock"], ads)
         risk = stockout_risk_level(coverage, item["current_stock"], item["reorder_level"])
         overstock = is_overstock(item["current_stock"], item["target_stock"], coverage, ads)
-        rows.append(
-            {
-                **item,
-                "average_daily_sales": ads,
-                "velocity_units": stats["units"],
-                "velocity_days": lookback,
-                "velocity_start": start,
-                "velocity_end": end,
-                "coverage_days": coverage,
-                "stockout_risk": risk,
-                "is_overstock": overstock,
-                "below_reorder": item["current_stock"] <= item["reorder_level"],
-                "zero_velocity": ads <= 0,
-            }
-        )
+        below_reorder = item["current_stock"] <= item["reorder_level"]
+        row = {
+            **item,
+            "average_daily_sales": ads,
+            "velocity_units": stats["units"],
+            "velocity_days": lookback,
+            "velocity_start": start,
+            "velocity_end": end,
+            "coverage_days": coverage,
+            "stockout_risk": risk,
+            "is_overstock": overstock,
+            "below_reorder": below_reorder,
+            "zero_velocity": ads <= 0,
+        }
+        row["replenishment_review"] = is_replenishment_review(row)
+        rows.append(row)
     return rows
 
 
@@ -98,6 +123,16 @@ def overstock_items(
 ) -> list[dict[str, Any]]:
     items = [row for row in inventory_status(product_id, store_id) if row["is_overstock"]]
     items.sort(key=lambda r: r["coverage_days"] if r["coverage_days"] is not None else 10_000, reverse=True)
+    return items
+
+
+def replenishment_review_items(
+    product_id: Optional[str] = None,
+    store_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Below-reorder items with coverage beyond the stock-out band."""
+    items = [row for row in inventory_status(product_id, store_id) if row["replenishment_review"]]
+    items.sort(key=lambda r: r["coverage_days"] if r["coverage_days"] is not None else 10_000)
     return items
 
 

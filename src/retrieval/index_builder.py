@@ -8,16 +8,26 @@ from src.config import EMBEDDING_DIMENSIONS
 
 
 def chunk_text(text: str, chunk_size: int = 700, overlap: int = 80) -> list[str]:
-    text = " ".join(text.split())
+    """Split on word boundaries so chunks never contain partial words."""
+    words = " ".join(text.split()).split()
+    if not words:
+        return []
+    overlap_words = max(1, overlap // 7)
     chunks: list[str] = []
     start = 0
-    while start < len(text):
-        end = min(len(text), start + chunk_size)
-        chunks.append(text[start:end].strip())
-        if end == len(text):
+    while start < len(words):
+        end = start
+        length = 0
+        while end < len(words) and length + len(words[end]) + (1 if end > start else 0) <= chunk_size:
+            length += len(words[end]) + (1 if end > start else 0)
+            end += 1
+        if end == start:
+            end = start + 1  # a single word longer than chunk_size
+        chunks.append(" ".join(words[start:end]))
+        if end >= len(words):
             break
-        start = max(end - overlap, start + 1)
-    return [c for c in chunks if c]
+        start = max(end - overlap_words, start + 1)
+    return chunks
 
 
 def hashed_embedding(text: str, dim: int = EMBEDDING_DIMENSIONS) -> np.ndarray:

@@ -13,9 +13,9 @@ function kpi(label, value, note) {
   return `<article class="kpi"><span>${label}</span><strong>${value}</strong><em>${note || ""}</em></article>`;
 }
 
-function badge(priority) {
+function badge(priority, cls) {
   const p = (priority || "low").toLowerCase();
-  return `<span class="badge ${p}">${p}</span>`;
+  return `<span class="badge ${cls || p}">${priority || p}</span>`;
 }
 
 function renderAttention(items) {
@@ -43,54 +43,106 @@ function table(headers, rows) {
     <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
-function renderCopilot(data) {
-  const findings = (data.findings || []).map((f) => {
+const EVIDENCE_GROUP_TITLES = {
+  inventory: "Inventory Evidence",
+  sales: "Sales Evidence",
+  policy: "Policy Evidence",
+  product: "Product Evidence",
+  store: "Store Evidence",
+  rule: "Rule Evidence",
+  calc: "Calculated Metrics",
+};
+
+function renderEvidenceList(evidence) {
+  if (!evidence?.length) return "<li>None</li>";
+  const groups = {};
+  for (const e of evidence) {
+    const key = e.group || e.type || "evidence";
+    (groups[key] = groups[key] || []).push(e);
+  }
+  return Object.entries(groups).map(([group, items]) => {
+    const title = EVIDENCE_GROUP_TITLES[group] || group.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+    const rows = items.map((e) => {
+      const context = [e.product_name, e.store_name].filter(Boolean).join(" · ");
+      const reference = e.policy_id || e.evidence_id;
+      return `<li style="margin-bottom: 8px;">
+        ${context ? `<div style="opacity: 0.85;">${context}</div>` : ""}
+        <div><strong>${e.label || e.metric.replaceAll("_", " ")}:</strong> ${e.display_value ?? e.value}</div>
+        <em style="font-size: 0.85em; opacity: 0.7;">Reference: ${reference}</em>
+      </li>`;
+    }).join("");
+    return `<div style="margin: 10px 0 4px;"><strong>${title}</strong></div><ul style="margin: 4px 0 8px; padding-left: 18px;">${rows}</ul>`;
+  }).join("");
+}
+
+function renderFindings(findings) {
+  if (!findings?.length) return "<li>None</li>";
+  return findings.map((f) => {
     if (!f || typeof f !== "object") return `<li>${f}</li>`;
     if (f.options) return `<li>Options: ${f.options.join(", ")}</li>`;
-    return `<li>${f.reason || ""}</li>`;
+    const rankBadge = f.rank ? badge(f.rank, "high") : "";
+    const typeBadge = f.issue_type ? `<span class="badge ${(f.priority || "low").toLowerCase()}">${f.issue_type.replaceAll("_", " ")}</span>` : "";
+    return `<li style="margin-bottom: 8px;">${rankBadge} ${typeBadge} ${f.reason || ""}</li>`;
   }).join("");
-  const evidence = (data.evidence || []).map((e) => {
-    let text = `<strong>${e.source || e.type || "Metric"}</strong><br/>`;
-    if (e.store_id) text += `&bull; Store: ${e.store_id}<br/>`;
-    if (e.product_id) text += `&bull; Product: ${e.product_id}<br/>`;
-    if (e.period) text += `&bull; Period: ${e.period}<br/>`;
-    text += `&bull; ${e.metric.replaceAll("_", " ")}: <strong>${e.value}</strong><br/>`;
-    text += `<em style="font-size: 0.85em; opacity: 0.7;">Evidence ID: ${e.evidence_id}</em>`;
-    return `<li style="margin-bottom: 8px;">${text}</li>`;
-  }).join("");
-  const assumptions = (data.assumptions || []).map((a) => `<li>${a}</li>`).join("");
-  const aiNote = data.ai_available ? "" : `<p class="warn">${data.answer.includes("unavailable") ? "" : "AI explanation is currently unavailable. Showing deterministic analytics."}</p>`;
+}
+
+function renderCopilot(data) {
+  const aiNote = (data.ai_available ?? data.ai_generated) ? "" : `<p class="warn">AI explanation is temporarily unavailable. Deterministic analytics are still available.</p>`;
+  const policies = (data.retrieved_policies || []).map((p) =>
+    `<li><strong>${p.title || p.source}</strong>${p.policy_id ? ` <em style="font-size: 0.85em; opacity: 0.7;">(${p.policy_id})</em>` : ""}<br/>${p.text}</li>`
+  ).join("");
   return `${aiNote}
     <div class="answer"><strong>${(data.status || "").replaceAll("_", " ")}</strong>
       <p>${data.answer}</p>
       ${data.recommendation ? `<p><strong>Recommended action:</strong> ${data.recommendation}</p>` : ""}
       ${data.missing ? `<p class="warn">${data.missing}</p>` : ""}
     </div>
-    <details open><summary>Findings</summary><ul>${findings || "<li>None</li>"}</ul></details>
-    <details><summary>Evidence</summary><ul>${evidence || "<li>None</li>"}</ul></details>
-    <details><summary>Assumptions</summary><ul>${assumptions || "<li>None</li>"}</ul></details>
-    <details><summary>Retrieved policies</summary><ul>${(data.retrieved_policies || []).map((p) => `<li><strong>${p.source}</strong>: ${p.text}</li>`).join("") || "<li>No specific policy retrieved</li>"}</ul></details>`;
+    <details open><summary>Findings</summary><ul>${renderFindings(data.findings)}</ul></details>
+    <details open><summary>Retrieved policies</summary><ul>${policies || "<li>No specific policy retrieved</li>"}</ul></details>
+    <details><summary>Evidence</summary><ul>${renderEvidenceList(data.evidence)}</ul></details>
+    <details><summary>Assumptions</summary><ul>${(data.assumptions || []).map((a) => `<li>${a}</li>`).join("") || "<li>None</li>"}</ul></details>`;
+}
+
+function setHealthPill(health) {
+  const status = health.gemini_status || (health.gemini_configured ? "connected" : "unavailable");
+  const pill = document.getElementById("health-pill");
+  if (status === "connected") {
+    pill.textContent = "Gemini Connected";
+    pill.className = "pill connected";
+  } else if (status === "not_configured") {
+    pill.textContent = "Gemini Not Configured";
+    pill.className = "pill not-configured";
+  } else {
+    pill.textContent = "Gemini Unavailable";
+    pill.className = "pill unavailable";
+  }
 }
 
 async function loadDashboard() {
   const [health, dash] = await Promise.all([getJson("/api/health"), getJson("/api/dashboard")]);
-  document.getElementById("health-pill").textContent = health.gemini_configured ? "Gemini Connected" : "Gemini Unavailable";
+  setHealthPill(health);
   document.getElementById("biz-date").textContent = dash.business_date;
   document.getElementById("data-refresh").textContent = dash.business_date + " 00:00:00 UTC";
   document.getElementById("data-range").textContent = `${dash.data_range.min_date} → ${dash.data_range.max_date}`;
   const s = dash.summary;
-  const b = s.month_bounds;
-  const momLabel = b ? `${b.current_start.slice(5)} to ${b.current_end.slice(5)} vs ${b.previous_start.slice(5)} to ${b.previous_end.slice(5)}` : "MoM";
+  const labels = s.month_labels || {};
+  const momLabel = labels.comparison_label || "MoM";
+  const unitsNote = s.month_over_month_units_note ? `<span style="color: var(--medium);">${s.month_over_month_units_note}</span>` : pct(s.month_over_month_units_pct);
+  const revenueNote = s.month_over_month_revenue_note ? `<span style="color: var(--medium);">${s.month_over_month_revenue_note}</span>` : pct(s.month_over_month_revenue_pct);
   document.getElementById("kpis").innerHTML = [
-    kpi("Month units", num(s.units_sold), `${momLabel}: ${pct(s.month_over_month_units_pct)}`),
-    kpi("Month revenue", inr(s.revenue), `${momLabel}: ${pct(s.month_over_month_revenue_pct)}`),
+    kpi("Month units", num(s.units_sold), `${momLabel}: ${unitsNote}`),
+    kpi("Month revenue", inr(s.revenue), `${momLabel}: ${revenueNote}`),
     kpi("Lifetime units", num(s.lifetime_units), "All 90-day history"),
     kpi("Inventory units", num(s.inventory_units), "Current on-hand"),
   ].join("");
   document.getElementById("attention-list").innerHTML = renderAttention(dash.attention);
+  const rr = dash.inventory_risks.replenishment_review_count;
+  document.getElementById("replenish-note").innerHTML = rr
+    ? `<p class="note">${rr} item(s) are below reorder level with coverage above 7 days — flagged for replenishment review, not stock-out risk.</p>`
+    : "";
   document.getElementById("stockouts").innerHTML = table(
     ["Product", "Store", "Stock", "ADS", "Coverage", "Risk"],
-    (dash.inventory_risks.stockouts || []).map((r) => [r.product_name, r.store_name, r.current_stock, r.average_daily_sales, r.coverage_days ?? "undef", r.risk])
+    (dash.inventory_risks.stockouts || []).map((r) => [r.product_name, r.store_name, r.current_stock, r.average_daily_sales, r.coverage_days ?? "undef", r.risk + (r.below_reorder ? " · below reorder" : "")])
   );
   document.getElementById("overstock").innerHTML = table(
     ["Product", "Store", "Stock", "Target", "Coverage"],

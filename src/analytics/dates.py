@@ -40,13 +40,15 @@ def trend_windows(end: Optional[date] = None, days: int = TREND_WINDOW_DAYS) -> 
 
 
 def month_bounds(end: Optional[date] = None) -> dict[str, str]:
+    """Equal-length MTD windows: current MTD vs the same calendar days of the
+    previous month (e.g. Sep 1-4 vs Aug 1-4), never vs a full previous month."""
     end_d = end or business_date()
     current_start = end_d.replace(day=1)
     if current_start.month == 1:
         prev_start = current_start.replace(year=current_start.year - 1, month=12)
     else:
         prev_start = current_start.replace(month=current_start.month - 1)
-    
+
     last_day_prev_month = (current_start - timedelta(days=1)).day
     prev_end_day = min(end_d.day, last_day_prev_month)
     prev_end = prev_start.replace(day=prev_end_day)
@@ -56,6 +58,22 @@ def month_bounds(end: Optional[date] = None) -> dict[str, str]:
         "current_end": iso(end_d),
         "previous_start": iso(prev_start),
         "previous_end": iso(prev_end),
+    }
+
+
+def month_labels(end: Optional[date] = None) -> dict[str, str]:
+    """Human labels for the equal-window MTD comparison."""
+    bounds = month_bounds(end)
+    current = date.fromisoformat(bounds["current_start"])
+    previous = date.fromisoformat(bounds["previous_start"])
+    prev_day = date.fromisoformat(bounds["previous_end"]).day
+    return {
+        "current_label": f"{current.strftime('%B')} MTD",
+        "previous_label": f"{previous.strftime('%b')} 1–{prev_day}",
+        "comparison_label": (
+            f"{current.strftime('%b')} {current.day}–{date.fromisoformat(bounds['current_end']).day} "
+            f"vs {previous.strftime('%b')} 1–{prev_day}"
+        ),
     }
 
 

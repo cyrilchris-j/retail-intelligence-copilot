@@ -1,11 +1,13 @@
-# Recommendation rules
+# Recommendation policy
+
+Priorities are ranked deterministically in Python using a fixed score: issue-type weight plus capped revenue-impact points. Gemini explains the ranking; it never decides the ranking.
 
 Every recommendation must cite deterministic metrics already computed:
 - stock, average daily sales, coverage, reorder level, or period sales
 - evidence identifiers when provided
 
 Language:
-- Use “consider”, “review”, or “investigate”
+- Use "consider", "review", or "investigate"
 - Never say that an order was placed, stock was moved, or a customer was contacted
 - Separate facts from suggestions
 - If Gemini is unavailable, still show the metrics and a template recommendation

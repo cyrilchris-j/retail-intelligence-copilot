@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.analytics.attention import attention_assumptions, attention_items
-from src.analytics.inventory import inventory_totals, overstock_items, stockout_risks
+from src.analytics.inventory import inventory_totals, overstock_items, replenishment_review_items, stockout_risks
 from src.analytics.sales import all_store_performance, monthly_sales, top_products, total_sales
 from src.analytics.trends import network_trend, notable_trends
 from src.config import BUSINESS_DATE
@@ -25,6 +25,7 @@ def build_dashboard() -> dict[str, Any]:
     stockouts = stockout_risks()[:8]
     overstocks = overstock_items()[:8]
     trends = notable_trends(8)
+    replenishment_count = len(replenishment_review_items())
     evidence = []
     for row in stockouts[:5]:
         evidence.extend(evidence_from_inventory(row))
@@ -60,9 +61,12 @@ def build_dashboard() -> dict[str, Any]:
             "inventory_units": totals["inventory_units"],
             "month_over_month_units_pct": month["units_change_pct"],
             "month_over_month_revenue_pct": month["revenue_change_pct"],
+            "month_over_month_units_note": month["units_change_note"],
+            "month_over_month_revenue_note": month["revenue_change_note"],
             "lifetime_units": total_sales()["units"],
             "lifetime_revenue": total_sales()["revenue"],
             "month_bounds": month["bounds"],
+            "month_labels": month["labels"],
         },
         "attention": attention,
         "inventory_risks": {
@@ -77,9 +81,11 @@ def build_dashboard() -> dict[str, Any]:
                     "coverage_days": r["coverage_days"],
                     "reorder_level": r["reorder_level"],
                     "risk": r["stockout_risk"],
+                    "below_reorder": r["below_reorder"],
                 }
                 for r in stockouts
             ],
+            "replenishment_review_count": replenishment_count,
             "overstock": [
                 {
                     "product_id": r["product_id"],

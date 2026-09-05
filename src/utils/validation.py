@@ -9,7 +9,13 @@ from typing import Any, Optional
 from src.config import MAX_QUESTION_LENGTH
 
 UNSUPPORTED_GEOGRAPHY = re.compile(
-    r"\b(europe|european|usa|united states|america|uk|britain|china|africa|australia|canada|middle east|uae|dubai)\b",
+    r"\b("
+    r"europe|european|usa|united states|america|uk|britain|london|china|africa|australia|sydney|melbourne|"
+    r"canada|toronto|middle east|uae|dubai|japan|tokyo|paris|france|berlin|germany|singapore|hong kong|"
+    r"shanghai|beijing|seoul|south korea|taiwan|philippines|thailand|vietnam|indonesia|malaysia|"
+    r"russia|brazil|mexico|new york|san francisco|los angeles|india is a big country|other countries|"
+    r"other geographies|outside india|outside the country|abroad"
+    r")\b",
     re.I,
 )
 

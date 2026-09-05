@@ -7,7 +7,12 @@ import re
 from typing import Any, Optional
 
 from src.analytics.attention import attention_assumptions, attention_items
-from src.analytics.inventory import inventory_status, overstock_items, stockout_risks
+from src.analytics.inventory import (
+    inventory_status,
+    overstock_items,
+    replenishment_review_items,
+    stockout_risks,
+)
 from src.analytics.sales import (
     all_store_performance,
     detect_sales_spikes_drops,
@@ -16,11 +21,19 @@ from src.analytics.sales import (
     product_performance,
     store_performance,
 )
-from src.database import find_products_by_name, find_stores_by_name_or_location, list_products, list_stores
+from src.config import PRIORITY_TOP_N
+from src.database import find_products_by_name, find_stores_by_name_or_location, get_store, list_products, list_stores
 from src.llm.gemini import explain
 from src.retrieval.retriever import retrieve
 from src.services.recommendations import recommendation_for
-from src.utils.evidence import add_evidence, evidence_from_inventory, evidence_from_trend, reset_evidence
+from src.utils.evidence import (
+    add_evidence,
+    evidence_from_inventory,
+    evidence_from_policy,
+    evidence_from_trend,
+    reset_evidence,
+    sales_evidence,
+)
 from src.utils.validation import (
     ValidationError,
     detect_unsupported_geography,
@@ -37,7 +50,7 @@ INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ATTENTION", re.compile(r"attention|watch list|issues", re.I)),
     ("SALES_DROP", re.compile(r"drop|declin|down|fell|decrease", re.I)),
     ("SALES_SPIKE", re.compile(r"spike|increase|surge|up\b|grew|growth", re.I)),
-    ("COMPARISON", re.compile(r"compare|versus|vs\.?|difference between", re.I)),
+    ("COMPARISON", re.compile(r"compare|versus|vs\\.?|difference between", re.I)),
     ("STORE_PERFORMANCE", re.compile(r"store|chennai|coimbatore|bengaluru|bangalore|hyderabad|madurai", re.I)),
     ("PRODUCT_PERFORMANCE", re.compile(r"how did|perform|this month|product", re.I)),
     ("SALES_TREND", re.compile(r"trend|week|month", re.I)),
@@ -79,10 +92,10 @@ def _match_entities(question: str) -> dict[str, Any]:
 
 
 def _insufficient(question: str, intent: str, missing: str, extra: Optional[str] = None) -> dict[str, Any]:
-    answer = (
-        "The available data does not contain sufficient information to answer this question. "
-        + missing
-    )
+    if missing.startswith("The available dataset"):
+        answer = missing
+    else:
+        answer = "The available dataset does not contain sufficient information to answer this question. " + missing
     if extra:
         answer = f"{answer} {extra}"
     return {
@@ -97,7 +110,8 @@ def _insufficient(question: str, intent: str, missing: str, extra: Optional[str]
         "evidence": [],
         "retrieved_policies": [],
         "needs_human_review": False,
-        "ai_available": True,
+        "ai_available": False,
+        "ai_generated": False,
         "clarification": None,
         "missing": missing,
     }
@@ -116,7 +130,8 @@ def _clarification(question: str, intent: str, message: str, options: list[str])
         "evidence": [],
         "retrieved_policies": [],
         "needs_human_review": True,
-        "ai_available": True,
+        "ai_available": False,
+        "ai_generated": False,
         "clarification": message,
         "missing": None,
     }
@@ -138,7 +153,8 @@ def answer_question(question: str) -> dict[str, Any]:
             "evidence": [],
             "retrieved_policies": [],
             "needs_human_review": False,
-            "ai_available": True,
+            "ai_available": False,
+            "ai_generated": False,
             "clarification": None,
             "missing": str(exc),
         }
@@ -148,7 +164,8 @@ def answer_question(question: str) -> dict[str, Any]:
         return _insufficient(
             question,
             "UNKNOWN",
-            f"The current dataset contains Indian stores only (Chennai, Coimbatore, Bengaluru, Hyderabad, Madurai), so {geo} performance cannot be determined from the available data.",
+            f"The available dataset does not contain {geo} store data, so this question cannot be answered from the available information.",
+            "The dataset covers Indian stores only (Chennai, Coimbatore, Bengaluru, Hyderabad, Madurai).",
         )
 
     metric = detect_unsupported_metric(question)
@@ -156,25 +173,16 @@ def answer_question(question: str) -> dict[str, Any]:
         return _insufficient(
             question,
             "UNKNOWN",
-            f"The metric “{metric}” is not present in the dataset. Available facts are sales units, revenue, inventory, and derived coverage/trend measures.",
+            f"The metric “{metric}” is not present in the available dataset, so this question cannot be answered from the available information.",
+            "Available facts are sales units, revenue, inventory, and derived coverage/trend measures.",
         )
 
-    # Unknown product/store mentions
-    mentioned_product = re.search(r"\bfor ([A-Z][\w\s-]{2,40})\b", question)
-    entities = _match_entities(question)
-    if re.search(r"\b(product|sku)\b", question, re.I) and "europe" not in question.lower():
-        pass
-
-    unknown_names = []
-    quoted = re.findall(r"[\"“']([^\"”']+)[\"”']", question)
-    for name in quoted:
-        if not find_products_by_name(name) and not find_stores_by_name_or_location(name):
-            unknown_names.append(name)
-    # Explicit unknown product probes
+    # Unknown product/store probes
     if re.search(r"\b(quantum toaster|mars warehouse|north pole|antarctica)\b", question, re.I):
         return _insufficient(question, "UNKNOWN", "No matching product or store exists in the catalogue.")
 
     intent = detect_intent(question)
+    entities = _match_entities(question)
     products = entities["products"]
     stores = entities["stores"]
 
@@ -228,8 +236,39 @@ def answer_question(question: str) -> dict[str, Any]:
             item["recommended_action"] = recommendation_for(item)
             findings.append(item)
             evidence.extend(evidence_from_inventory(row))
+        # Separate signal: below reorder level but coverage beyond the stock-out band.
+        rr_rows = replenishment_review_items(product_id, store_id)[:5]
+        rr_findings = []
+        for row in rr_rows:
+            rr_findings.append(
+                {
+                    "issue_type": "replenishment_review",
+                    "product_id": row["product_id"],
+                    "product_name": row["product_name"],
+                    "store_id": row["store_id"],
+                    "store_name": row["store_name"],
+                    "priority": "low",
+                    "reason": (
+                        f"{row['product_name']} at {row['store_name']} is below reorder level "
+                        f"(stock {row['current_stock']} vs reorder {row['reorder_level']}) but has "
+                        f"{row['coverage_days']} days of coverage, so it is a replenishment review, not a stock-out risk."
+                    ),
+                    "metrics": {
+                        "current_stock": row["current_stock"],
+                        "average_daily_sales": row["average_daily_sales"],
+                        "coverage_days": row["coverage_days"],
+                        "reorder_level": row["reorder_level"],
+                        "signal": "below_reorder",
+                    },
+                    "recommended_action": "Review replenishment timing; this is below the reorder level but not a stock-out risk under the coverage rule.",
+                    "needs_human_review": False,
+                }
+            )
+            evidence.extend(evidence_from_inventory(row))
+        findings.extend(rr_findings)
         facts["stockout_count"] = len(rows)
-        facts["stockouts"] = findings
+        facts["stockouts"] = [f for f in findings if f["issue_type"] == "stockout"]
+        facts["replenishment_review"] = rr_findings
 
     elif intent == "OVERSTOCK":
         rows = overstock_items(product_id, store_id)
@@ -260,8 +299,36 @@ def answer_question(question: str) -> dict[str, Any]:
         facts["overstock_count"] = len(rows)
         facts["overstock"] = findings
 
-    elif intent in {"ATTENTION", "PRIORITY"}:
-        for item in attention_items():
+    elif intent == "PRIORITY":
+        ranked = attention_items(limit=12)
+        for idx, item in enumerate(ranked[:PRIORITY_TOP_N], start=1):
+            item = dict(item)
+            item["recommended_action"] = recommendation_for(item)
+            item["rank"] = f"Priority {idx}"
+            findings.append(item)
+        facts["priority_ranking"] = [
+            {
+                "rank": f"Priority {idx}",
+                "issue_type": dict(item).get("issue_type"),
+                "product_name": dict(item).get("product_name"),
+                "store_name": dict(item).get("store_name"),
+                "score": dict(item).get("score"),
+                "priority": dict(item).get("priority"),
+                "reason": dict(item).get("reason"),
+                "metrics": dict(item).get("metrics"),
+            }
+            for idx, item in enumerate(ranked[:5], start=1)
+        ]
+        facts["attention"] = [
+            {"issue_type": dict(i).get("issue_type"), "product": dict(i).get("product_name"), "store": dict(i).get("store_name"), "score": dict(i).get("score")}
+            for i in ranked
+        ]
+        evidence.append(
+            add_evidence("rule", source="analytics.attention", metric="attention_item_count", value=len(ranked))
+        )
+
+    elif intent == "ATTENTION":
+        for item in attention_items(limit=8):
             item = dict(item)
             item["recommended_action"] = recommendation_for(item)
             findings.append(item)
@@ -300,24 +367,26 @@ def answer_question(question: str) -> dict[str, Any]:
                 "needs_human_review": True,
             }
         )
-        evidence.append(
-            add_evidence(
-                "store",
-                source="sales",
-                metric="month_units",
-                value=left["month"]["current"]["units"],
+        evidence.extend(
+            sales_evidence(
+                product_id=None,
+                product_name=None,
                 store_id=stores[0]["store_id"],
+                store_name=stores[0]["store_name"],
                 period=left["month"]["bounds"]["current_start"],
+                units=left["month"]["current"]["units"],
+                revenue=left["month"]["current"]["revenue"],
             )
         )
-        evidence.append(
-            add_evidence(
-                "store",
-                source="sales",
-                metric="month_units",
-                value=right["month"]["current"]["units"],
+        evidence.extend(
+            sales_evidence(
+                product_id=None,
+                product_name=None,
                 store_id=stores[1]["store_id"],
+                store_name=stores[1]["store_name"],
                 period=right["month"]["bounds"]["current_start"],
+                units=right["month"]["current"]["units"],
+                revenue=right["month"]["current"]["revenue"],
             )
         )
 
@@ -355,6 +424,8 @@ def answer_question(question: str) -> dict[str, Any]:
         perf = product_performance(product_id, store_id)
         if not perf:
             return _insufficient(question, intent, "That product is not in the catalogue.")
+        store = get_store(store_id) if store_id else None
+        store_name = store["store_name"] if store else None
         facts["product"] = perf["product"]
         facts["month"] = perf["month"]
         facts["velocity"] = perf["velocity"]
@@ -370,6 +441,7 @@ def answer_question(question: str) -> dict[str, Any]:
                 "product_id": product_id,
                 "product_name": perf["product"]["product_name"],
                 "store_id": store_id,
+                "store_name": store_name,
                 "priority": "medium",
                 "reason": (
                     f"{perf['product']['product_name']} sold {perf['month']['current']['units']} units "
@@ -381,22 +453,24 @@ def answer_question(question: str) -> dict[str, Any]:
                 "needs_human_review": True,
             }
         )
-        evidence.append(
-            add_evidence(
-                "sales",
-                source="sales",
-                metric="month_units",
-                value=perf["month"]["current"]["units"],
+        evidence.extend(
+            sales_evidence(
                 product_id=product_id,
+                product_name=perf["product"]["product_name"],
                 store_id=store_id,
+                store_name=store_name,
                 period=perf["month"]["bounds"]["current_start"],
+                units=perf["month"]["current"]["units"],
+                revenue=perf["month"]["current"]["revenue"],
             )
         )
         evidence.extend(
             evidence_from_trend(
                 {
                     "product_id": product_id,
+                    "product_name": perf["product"]["product_name"],
                     "store_id": store_id,
+                    "store_name": store_name,
                     "recent_units": perf["comparison"]["recent"]["units"],
                     "baseline_units": perf["comparison"]["baseline"]["units"],
                     "change_pct": perf["comparison"]["change_pct"],
@@ -448,13 +522,15 @@ def answer_question(question: str) -> dict[str, Any]:
                 "needs_human_review": True,
             }
         )
-        evidence.append(
-            add_evidence(
-                "store",
-                source="sales",
-                metric="month_units",
-                value=perf["month"]["current"]["units"],
+        evidence.extend(
+            sales_evidence(
+                product_id=None,
+                product_name=None,
                 store_id=store_id,
+                store_name=perf["store"]["store_name"],
+                period=perf["month"]["bounds"]["current_start"],
+                units=perf["month"]["current"]["units"],
+                revenue=perf["month"]["current"]["revenue"],
             )
         )
 
@@ -464,12 +540,19 @@ def answer_question(question: str) -> dict[str, Any]:
             return _insufficient(question, intent, "No matching entity was found in stores or products.")
         if not products and re.search(r"\bhow did\b", question, re.I):
             return _insufficient(question, intent, "No matching product was found in the catalogue.")
-        # Default to attention if the question is operational but unmatched
         if intent in {"GENERAL_DATA_QUESTION", "UNKNOWN"}:
             month = monthly_sales()
             facts["network_month"] = month["current"]
-            evidence.append(
-                add_evidence("sales", source="sales", metric="month_units", value=month["current"]["units"], period=month["bounds"]["current_start"])
+            evidence.extend(
+                sales_evidence(
+                    product_id=None,
+                    product_name=None,
+                    store_id=None,
+                    store_name=None,
+                    period=month["bounds"]["current_start"],
+                    units=month["current"]["units"],
+                    revenue=month["current"]["revenue"],
+                )
             )
             findings.append(
                 {
@@ -493,6 +576,8 @@ def answer_question(question: str) -> dict[str, Any]:
         )
 
     policies = retrieve(question)
+    for policy in policies:
+        evidence.extend(evidence_from_policy(policy))
     assumptions = attention_assumptions()
     ai = explain(question, intent, facts, evidence, policies, assumptions)
 
@@ -500,7 +585,7 @@ def answer_question(question: str) -> dict[str, Any]:
     if not ai.get("ai_available"):
         # Deterministic fallback narrative
         bullets = [f["reason"] for f in findings if isinstance(f, dict) and f.get("reason")]
-        head = "AI explanation is currently unavailable. Deterministic analytics still apply. "
+        head = "AI explanation is temporarily unavailable. Deterministic analytics are still available. "
         if bullets:
             answer = head + " ".join(bullets[:3])
         else:
@@ -533,6 +618,8 @@ def answer_question(question: str) -> dict[str, Any]:
         "retrieved_policies": policies,
         "needs_human_review": True,
         "ai_available": bool(ai.get("ai_available")),
+        "ai_generated": bool(ai.get("ai_available")),
+        "fallback_reason": ai.get("fallback_reason"),
         "clarification": None,
         "missing": None,
     }

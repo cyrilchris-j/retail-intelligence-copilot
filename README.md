@@ -20,9 +20,13 @@ The application loads a committed SQLite retail database, computes inventory cov
 
 - Dashboard: month sales, revenue, units, on-hand inventory, attention list, stock-out risk, overstock, spikes/drops, store performance, top products
 - Natural-language copilot with intent routing (stock-out, overstock, performance, comparison, priority, no-data)
-- Transparent coverage, overstock, spike/drop, and priority formulas
-- Evidence identifiers on important answers
-- Honest refusal when the dataset cannot answer (for example Europe stores, unknown products, unsupported metrics)
+- Transparent coverage, overstock, spike/drop, and priority formulas (single source of truth in `src/config.py`)
+- Month-over-month compares equal-length windows: September MTD vs August 1–4, never a partial month against a full month
+- "What should I prioritize today?" returns a deterministic Priority 1/2/3 ranking; Gemini explains, never re-ranks
+- Local policy retrieval (committed embeddings) with stable policy ids visible in the UI
+- Evidence identifiers on important answers, rendered as manager-readable cards
+- Honest refusal when the dataset cannot answer (for example Europe/Tokyo stores, unknown products, unsupported metrics)
+- Truthful Gemini status: the header says "Connected" only after a real request succeeds; otherwise "Unavailable" or "Not Configured"
 - Gemini fallback: analytics still run if the API key is missing or the model fails
 
 ## Architecture
@@ -141,7 +145,7 @@ Incremental commits from skeleton → schema/data → analytics → API → dash
 
 ## Test scenarios
 
-`python scripts/validate.py` checks coverage math, stock-out/overstock rules, percent change, empty queries, malformed Gemini JSON, Europe no-data, unknown product, and attention ranking.
+`python scripts/validate.py` checks coverage math, exact stock-out thresholds (including the >7-day non-stock-out rule), overstock, equal-window MTD, percent-change notes, ranked priorities, policy retrieval, no-data cases (Europe, Tokyo, profit, employees), Gemini fallback, and response parsing. A pytest suite lives in `tests/` (`pytest tests/`).
 
 ## Demo plan
 
