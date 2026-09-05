@@ -31,7 +31,9 @@ def test_no_data_cases() -> None:
 
 def test_europe_answer_explains_missing_data() -> None:
     result = answer_question("How are our Europe stores performing?")
-    assert "does not contain europe store data" in result["answer"].lower()
+    assert result["answer"] == "The available dataset does not contain Europe store data, so this question cannot be answered from the available information."
+    assert result["status"] == "insufficient_data"
+    assert result["ai_generated"] is False
 
 
 def test_stockout_query_returns_deterministic_findings() -> None:

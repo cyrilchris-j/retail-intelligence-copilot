@@ -18,13 +18,13 @@ EMBEDDINGS_PATH = INDEX_DIR / "embeddings.npy"
 CHUNKS_PATH = INDEX_DIR / "chunks.json"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 # If the configured model is not available, try these in order before declaring Gemini unavailable.
 GEMINI_FALLBACK_MODELS = [
-    "gemini-3-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
 ]
 GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSIONS = 768

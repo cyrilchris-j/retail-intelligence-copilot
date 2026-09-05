@@ -164,8 +164,7 @@ def answer_question(question: str) -> dict[str, Any]:
         return _insufficient(
             question,
             "UNKNOWN",
-            f"The available dataset does not contain {geo} store data, so this question cannot be answered from the available information.",
-            "The dataset covers Indian stores only (Chennai, Coimbatore, Bengaluru, Hyderabad, Madurai).",
+            f"The available dataset does not contain {geo.title()} store data, so this question cannot be answered from the available information.",
         )
 
     metric = detect_unsupported_metric(question)

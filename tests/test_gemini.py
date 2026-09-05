@@ -49,3 +49,9 @@ def test_status_connected_when_health_ok(monkeypatch) -> None:
     monkeypatch.setattr(gemini_mod, "gemini_configured", lambda: True)
     monkeypatch.setattr(gemini_mod, "check_health", lambda force=False: True)
     assert gemini_mod.gemini_status() == "connected"
+
+
+def test_gemini_model_configuration() -> None:
+    from src.config import GEMINI_FALLBACK_MODELS, GEMINI_MODEL
+    assert GEMINI_MODEL == "gemini-3.5-flash-lite"
+    assert "gemini-2.5-flash-lite" in GEMINI_FALLBACK_MODELS

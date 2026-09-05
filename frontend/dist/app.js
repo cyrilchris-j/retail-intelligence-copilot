@@ -61,25 +61,75 @@ const EVIDENCE_GROUP_TITLES = {
 };
 
 function renderEvidenceList(evidence) {
-  if (!evidence?.length) return "<li>None</li>";
-  const groups = {};
+  if (!evidence?.length) return "<p style='opacity: 0.7;'>None</p>";
+
+  const inventoryItems = [];
+  const otherItems = [];
   for (const e of evidence) {
-    const key = e.group || e.type || "evidence";
-    (groups[key] = groups[key] || []).push(e);
+    if (e.group === "inventory" || e.source === "inventory" || e.source === "analytics.inventory") {
+      inventoryItems.push(e);
+    } else {
+      otherItems.push(e);
+    }
   }
-  return Object.entries(groups).map(([group, items]) => {
-    const title = EVIDENCE_GROUP_TITLES[group] || group.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
-    const rows = items.map((e) => {
-      const context = [e.product_name, e.store_name].filter(Boolean).join(" · ");
-      const reference = e.policy_id || e.evidence_id;
-      return `<li style="margin-bottom: 8px;">
-        ${context ? `<div style="opacity: 0.85;">${context}</div>` : ""}
-        <div><strong>${e.label || e.metric.replaceAll("_", " ")}:</strong> ${e.display_value ?? e.value}</div>
-        <em style="font-size: 0.85em; opacity: 0.7;">Reference: ${reference}</em>
-      </li>`;
-    }).join("");
-    return `<div class="evidence-card"><strong>${title}</strong></div><ul style="margin: 4px 0 10px; padding-left: 18px;">${rows}</ul>`;
-  }).join("");
+
+  const cards = [];
+
+  if (inventoryItems.length) {
+    const invGroups = {};
+    for (const item of inventoryItems) {
+      const key = `${item.product_id || ""}_${item.store_id || ""}`;
+      (invGroups[key] = invGroups[key] || []).push(item);
+    }
+
+    for (const items of Object.values(invGroups)) {
+      const storeName = items.find((i) => i.store_name)?.store_name || "All Stores";
+      const productName = items.find((i) => i.product_name)?.product_name;
+      const currentStockItem = items.find((i) => i.metric === "current_stock");
+      const adsItem = items.find((i) => i.metric === "average_daily_sales");
+      const coverageItem = items.find((i) => i.metric === "coverage_days");
+      const reorderItem = items.find((i) => i.metric === "reorder_level");
+      const refs = [...new Set(items.map((i) => i.evidence_id || i.policy_id).filter(Boolean))];
+
+      cards.push(`
+        <div class="evidence-card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;">
+          <div style="font-weight: 600; color: var(--text-heading, #fff); margin-bottom: 6px; font-size: 13px;">Inventory Evidence</div>
+          ${productName ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Product:</span> <strong>${productName}</strong></div>` : ""}
+          <div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Store:</span> ${storeName}</div>
+          ${currentStockItem ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Current stock:</span> ${currentStockItem.display_value || currentStockItem.value + " units"}</div>` : ""}
+          ${adsItem ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Average daily sales:</span> ${adsItem.display_value || adsItem.value}</div>` : ""}
+          ${coverageItem ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Coverage:</span> ${coverageItem.display_value || (coverageItem.value ? coverageItem.value + " days" : "Undefined")}</div>` : ""}
+          ${reorderItem ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Reorder level:</span> ${reorderItem.display_value || reorderItem.value}</div>` : ""}
+          <div style="font-size: 0.85em; opacity: 0.7; margin-top: 6px;">Reference: ${refs.join(", ")}</div>
+        </div>
+      `);
+    }
+  }
+
+  if (otherItems.length) {
+    const groups = {};
+    for (const e of otherItems) {
+      const key = e.group || e.type || "evidence";
+      (groups[key] = groups[key] || []).push(e);
+    }
+    for (const [group, items] of Object.entries(groups)) {
+      const title = EVIDENCE_GROUP_TITLES[group] || group.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()) + " Evidence";
+      for (const e of items) {
+        const context = [e.product_name, e.store_name].filter(Boolean).join(" · ");
+        const reference = e.policy_id || e.evidence_id || "N/A";
+        cards.push(`
+          <div class="evidence-card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;">
+            <div style="font-weight: 600; color: var(--text-heading, #fff); margin-bottom: 6px; font-size: 13px;">${title}</div>
+            ${context ? `<div style="margin-bottom: 2px;"><span style="opacity: 0.75;">Scope:</span> ${context}</div>` : ""}
+            <div style="margin-bottom: 2px;"><span style="opacity: 0.75;">${e.label || (e.metric ? e.metric.replaceAll("_", " ") : "Finding")}:</span> <strong>${e.display_value ?? e.value}</strong></div>
+            <div style="font-size: 0.85em; opacity: 0.7; margin-top: 6px;">Reference: ${reference}</div>
+          </div>
+        `);
+      }
+    }
+  }
+
+  return cards.join("");
 }
 
 function renderFindings(findings) {
@@ -133,12 +183,12 @@ function renderCopilot(data) {
     </div>
     <details open><summary>Findings</summary><ul>${renderFindings(data.findings)}</ul></details>
     <details><summary>Retrieved policies (${(data.retrieved_policies || []).length})</summary><ul style="list-style: none; padding: 0; margin-top: 10px;">${policies || "<li>No specific policy retrieved</li>"}</ul></details>
-    <details><summary>Evidence</summary><ul>${renderEvidenceList(data.evidence)}</ul></details>
+    <details><summary>Evidence (${(data.evidence || []).length})</summary><div style="margin-top: 10px;">${renderEvidenceList(data.evidence)}</div></details>
     <details><summary>Assumptions</summary><ul>${(data.assumptions || []).map((a) => `<li>${a}</li>`).join("") || "<li>None</li>"}</ul></details>`;
 }
 
 function setHealthPill(health) {
-  const status = health.gemini_status || (health.gemini_configured ? "connected" : "unavailable");
+  const status = health.gemini_status === "connected" ? "connected" : (health.gemini_status === "not_configured" ? "not_configured" : "unavailable");
   const pill = document.getElementById("health-pill");
   if (status === "connected") {
     pill.textContent = "Gemini Connected";

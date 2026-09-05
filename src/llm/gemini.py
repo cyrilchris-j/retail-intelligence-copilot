@@ -61,11 +61,7 @@ def _safe(message: str) -> str:
 
 
 def resolve_model(client=None) -> Optional[str]:
-    """Return the first configured/fallback model the API confirms exists.
-
-    The result is cached for the process lifetime (model availability does
-    not change mid-session) so requests do not re-query the API on every call.
-    """
+    """Return the currently resolved or first available model candidate."""
     global _resolved_model
     if _resolved_model:
         return _resolved_model
@@ -99,6 +95,7 @@ def check_health(force: bool = False) -> bool:
     Truthful: returns True only if an actual generation has succeeded
     recently, or a lightweight probe generation succeeds right now.
     """
+    global _resolved_model
     if not gemini_configured():
         return False
     now = time.monotonic()
@@ -112,22 +109,30 @@ def check_health(force: bool = False) -> bool:
         cached_at = _health_cache["at"]
     if not force and cached_status is not None and now - cached_at < HEALTH_CACHE_SECONDS:
         return bool(cached_status)
+
+    ok = False
     try:
         from google import genai
 
         client = genai.Client(api_key=GEMINI_API_KEY)
-        model = resolve_model(client)
-        if not model:
-            raise RuntimeError("no usable model found")
-        response = client.models.generate_content(
-            model=model,
-            contents="Reply with exactly: OK",
-            config=genai.types.GenerateContentConfig(temperature=0.0),
-        )
-        ok = bool((response.text or "").strip())
+        for model in _model_candidates():
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents="Reply with exactly: OK",
+                    config=genai.types.GenerateContentConfig(temperature=0.0),
+                )
+                if bool((response.text or "").strip()):
+                    with _lock:
+                        _resolved_model = model
+                    ok = True
+                    break
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Health check probe failed on %s: %s", model, _safe(str(exc)))
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Gemini health check failed: %s", _safe(str(exc)))
+        logger.warning("Gemini health check initialization failed: %s", _safe(str(exc)))
         ok = False
+
     with _lock:
         _health_cache["at"] = now
         _health_cache["status"] = ok
@@ -164,23 +169,38 @@ def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list
 
 
 def _generate(prompt: str) -> str:
-    """Generate with the first usable model; falls through the model chain."""
+    """Generate with the first usable model; falls through the candidate models on error."""
+    global _resolved_model
     from google.genai import types
 
     client = _client()
-    model = resolve_model(client)
-    if not model:
-        raise RuntimeError("no usable Gemini model available")
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
-    )
-    return response.text or ""
+    candidates = _model_candidates()
+    # If a model was already resolved, try it first, then the remaining candidates
+    if _resolved_model and _resolved_model in candidates:
+        ordered_candidates = [_resolved_model] + [m for m in candidates if m != _resolved_model]
+    else:
+        ordered_candidates = candidates
+
+    last_exc = None
+    for model in ordered_candidates:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.2,
+                    response_mime_type="application/json",
+                ),
+            )
+            with _lock:
+                _resolved_model = model
+            return response.text or ""
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            logger.warning("Generation failed on %s: %s", model, _safe(str(exc)))
+
+    raise RuntimeError(f"All candidate Gemini models failed. Last error: {_safe(str(last_exc))}")
 
 
 def explain(
