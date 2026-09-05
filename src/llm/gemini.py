@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 def gemini_configured() -> bool:
     return bool(GEMINI_API_KEY)
 
+def check_health() -> bool:
+    if not gemini_configured():
+        return False
+    try:
+        from google import genai
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        client.models.get(model=GEMINI_MODEL)
+        return True
+    except Exception as exc:
+        logger.warning("Gemini health check failed: %s", exc)
+        return False
 
 def _client():
     from google import genai
@@ -101,7 +112,9 @@ def explain(
             logger.error("Gemini timed out after %ss", GEMINI_TIMEOUT_SECONDS)
         except Exception as exc:  # noqa: BLE001 — must never crash the API
             last_error = str(exc)
-            logger.error("Gemini failure (attempt %s): %s", attempt + 1, exc)
+            if GEMINI_API_KEY and GEMINI_API_KEY in last_error:
+                last_error = last_error.replace(GEMINI_API_KEY, "***")
+            logger.error("Gemini request failed (attempt %s): %s", attempt + 1, last_error)
     return _fallback(last_error or "unknown", allowed_ids)
 
 
