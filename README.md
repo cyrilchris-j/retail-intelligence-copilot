@@ -1,4 +1,4 @@
-Hackathon: NexusTiq24
+TRACK_ID=PS03
 
 Problem Statement: PS03 — Retail: Sales and Inventory Copilot
 
