@@ -46,7 +46,11 @@ def month_bounds(end: Optional[date] = None) -> dict[str, str]:
         prev_start = current_start.replace(year=current_start.year - 1, month=12)
     else:
         prev_start = current_start.replace(month=current_start.month - 1)
-    prev_end = current_start - timedelta(days=1)
+    
+    last_day_prev_month = (current_start - timedelta(days=1)).day
+    prev_end_day = min(end_d.day, last_day_prev_month)
+    prev_end = prev_start.replace(day=prev_end_day)
+
     return {
         "current_start": iso(current_start),
         "current_end": iso(end_d),

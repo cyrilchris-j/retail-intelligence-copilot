@@ -62,6 +62,7 @@ def build_dashboard() -> dict[str, Any]:
             "month_over_month_revenue_pct": month["revenue_change_pct"],
             "lifetime_units": total_sales()["units"],
             "lifetime_revenue": total_sales()["revenue"],
+            "month_bounds": month["bounds"],
         },
         "attention": attention,
         "inventory_risks": {
