@@ -3,42 +3,42 @@
     "chunk_id": "inventory_policy.md#1",
     "source": "inventory_policy.md",
     "text": "# Inventory policy Inventory coverage is current_stock divided by average daily sales over the last 14 days, ending on the business date. Stock-out risk: - Critical: coverage \u2264 2 days - High: coverage \u2264 5 days - Medium: coverage \u2264 7 days, or current stock at or below reorder level - If average daily sales are zero, coverage is undefined. Do not invent a coverage figure. Flag medium risk only when stock is also at or below reorder level. Fast-selling items can have high absolute stock and still be healthy. Do not treat high stock alone as a problem. Replenishment recommendations are for the manager to consider. The copilot never places purchase orders or changes inventory records.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 0
   },
   {
     "chunk_id": "overstock_policy.md#1",
     "source": "overstock_policy.md",
     "text": "# Overstock policy Overstock is slow inventory, not merely large inventory. An item is overstocked only when all of the following hold: - current stock is at least 1.5\u00d7 target stock - inventory coverage exceeds 45 days, or there are no recent sales (undefined coverage) - average daily sales are at or below 1.5 units, so the item is not a fast seller A high-stock product with strong velocity is working capital in motion, not a glut. Recommended manager actions: pause replenishment, consider a transfer to a higher-velocity store, or plan a promotion. None of these actions are executed by the system.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 1
   },
   {
     "chunk_id": "recommendation_rules.md#1",
     "source": "recommendation_rules.md",
     "text": "# Recommendation rules Every recommendation must cite deterministic metrics already computed: - stock, average daily sales, coverage, reorder level, or period sales - evidence identifiers when provided Language: - Use \u201cconsider\u201d, \u201creview\u201d, or \u201cinvestigate\u201d - Never say that an order was placed, stock was moved, or a customer was contacted - Separate facts from suggestions - If Gemini is unavailable, still show the metrics and a template recommendation Human-in-the-loop: the manager is the decision maker. The copilot is decision support only.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 2
   },
   {
     "chunk_id": "sales_analysis.md#1",
     "source": "sales_analysis.md",
     "text": "# Sales analysis guidelines Compare a recent 14-day window with the immediately preceding 14-day baseline. change_percentage = ((recent - baseline) / baseline) \u00d7 100 - Spike if change \u2265 +25% - Drop if change \u2264 -25% - If baseline units are zero and recent units are also zero, history is insufficient - If baseline units are zero and recent units are positive, percentage change is undefined; do not fabricate a percentage Month-to-date figures use the first calendar day of the business month through the business date. Month-over-month compares that window with the previous full calendar month. Sales changes are investigation flags. They are not automatic markdowns or forecasts.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 3
   },
   {
     "chunk_id": "stockout_policy.md#1",
     "source": "stockout_policy.md",
     "text": "# Stock-out policy Likely stock-outs are products whose remaining inventory, at recent sales velocity, will not cover the next few selling days. Formula: average_daily_sales = recent_units / 14 inventory_coverage_days = current_stock / average_daily_sales Prioritize: 1. Critical coverage (\u2264 2 days) at high-velocity stores 2. High coverage risk (\u2264 5 days) combined with stock below reorder level 3. Items that also show a recent sales increase, because demand may consume stock faster If several products compete for attention, rank by severity first, then by estimated near-term revenue at risk (price \u00d7 remaining demand). Confirm inbound purchase orders with operations before acting.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 4
   },
   {
     "chunk_id": "store_operations.md#1",
     "source": "store_operations.md",
     "text": "# Store operations guidance The network has Indian stores only: Chennai Central, Coimbatore, Bengaluru MG Road, Hyderabad Banjara, and Madurai. Store attention: - A store is underperforming when month-to-date units are at least 25% below the simple average of stores - Investigate local stock-outs before assuming demand has collapsed - Compare like-for-like categories against peer stores Questions about Europe, the US, or other geographies cannot be answered from this dataset. Do not generalize Indian store results to other regions.",
-    "embedding_model": "hashed-ngram-fallback",
+    "embedding_model": "gemini-embedding-001",
     "index": 5
   }
 ]
