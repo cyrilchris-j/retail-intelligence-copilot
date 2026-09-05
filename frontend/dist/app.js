@@ -47,7 +47,7 @@ function renderAttention(items) {
 function table(headers, rows) {
   if (!rows.length) return "<p class=\"note\">None at current thresholds.</p>";
   return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
-    <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    <tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${headers[i]}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 const EVIDENCE_GROUP_TITLES = {
@@ -123,6 +123,8 @@ function setHealthPill(health) {
     pill.textContent = "Gemini Unavailable";
     pill.className = "pill unavailable";
   }
+  const dot = document.getElementById("status-dot");
+  if (dot) dot.className = `status-dot ${status}`;
 }
 
 const PAGE_META = {
@@ -137,9 +139,13 @@ const PAGE_META = {
 
 function setupNav() {
   const links = document.querySelectorAll(".nav-link");
+  const bnavButtons = document.querySelectorAll(".bottom-nav .bnav");
+  const bnavMore = document.getElementById("bnav-more");
   const sections = Array.from(links).map((l) => document.getElementById(l.dataset.target)).filter(Boolean);
   const crumbs = document.getElementById("page-crumb");
   const title = document.getElementById("page-title");
+  // Sections reachable via the bottom nav directly; the rest live under "More".
+  const bnavTargets = new Set(["overview", "attention", "copilot", "inventory"]);
 
   const observer = new IntersectionObserver(
     (entries) => {
@@ -147,6 +153,8 @@ function setupNav() {
         if (!entry.isIntersecting) continue;
         const id = entry.target.id;
         links.forEach((l) => l.classList.toggle("active", l.dataset.target === id));
+        bnavButtons.forEach((b) => b.classList.toggle("active", b.dataset.target === id));
+        if (bnavMore) bnavMore.classList.toggle("active", !bnavTargets.has(id));
         const meta = PAGE_META[id];
         if (meta) {
           crumbs.textContent = meta[0];
@@ -157,23 +165,55 @@ function setupNav() {
     { rootMargin: "-25% 0px -65% 0px", threshold: 0 }
   );
   sections.forEach((s) => observer.observe(s));
+
+  // Bottom nav taps scroll to their section.
+  bnavButtons.forEach((b) => {
+    if (!b.dataset.target) return;
+    b.addEventListener("click", () => {
+      const section = document.getElementById(b.dataset.target);
+      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  // "More" opens the full navigation drawer.
+  if (bnavMore) {
+    bnavMore.addEventListener("click", () => {
+      const sidebar = document.getElementById("sidebar");
+      const scrim = document.getElementById("sidebar-scrim");
+      if (sidebar && scrim) {
+        sidebar.classList.add("open");
+        scrim.classList.add("show");
+        document.body.classList.add("menu-open");
+      }
+    });
+  }
 }
 
 function setupMobileMenu() {
   const btn = document.getElementById("menu-btn");
   const sidebar = document.getElementById("sidebar");
   const scrim = document.getElementById("sidebar-scrim");
+  const closeBtn = document.getElementById("drawer-close");
   if (!btn || !sidebar || !scrim) return;
   const close = () => {
     sidebar.classList.remove("open");
     scrim.classList.remove("show");
+    document.body.classList.remove("menu-open");
+  };
+  const open = () => {
+    sidebar.classList.add("open");
+    scrim.classList.add("show");
+    document.body.classList.add("menu-open");
   };
   btn.addEventListener("click", () => {
-    sidebar.classList.toggle("open");
-    scrim.classList.toggle("show");
+    if (sidebar.classList.contains("open")) close();
+    else open();
   });
+  if (closeBtn) closeBtn.addEventListener("click", close);
   scrim.addEventListener("click", close);
   sidebar.querySelectorAll(".nav-link").forEach((l) => l.addEventListener("click", close));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
 }
 
 async function loadDashboard() {
